@@ -1,0 +1,14 @@
+D:\projects\Contabilidad_API\CapaDatos.ContabilidadAPI\bin\Debug\net8.0\CapaDatos.ContabilidadAPI.deps.json
+D:\projects\Contabilidad_API\CapaDatos.ContabilidadAPI\bin\Debug\net8.0\CapaDatos.ContabilidadAPI.runtimeconfig.json
+D:\projects\Contabilidad_API\CapaDatos.ContabilidadAPI\bin\Debug\net8.0\CapaDatos.ContabilidadAPI.dll
+D:\projects\Contabilidad_API\CapaDatos.ContabilidadAPI\bin\Debug\net8.0\CapaDatos.ContabilidadAPI.pdb
+D:\projects\Contabilidad_API\CapaDatos.ContabilidadAPI\obj\Debug\net8.0\CapaDatos.ContabilidadAPI.csproj.AssemblyReference.cache
+D:\projects\Contabilidad_API\CapaDatos.ContabilidadAPI\obj\Debug\net8.0\CapaDatos.ContabilidadAPI.GeneratedMSBuildEditorConfig.editorconfig
+D:\projects\Contabilidad_API\CapaDatos.ContabilidadAPI\obj\Debug\net8.0\CapaDatos.ContabilidadAPI.AssemblyInfoInputs.cache
+D:\projects\Contabilidad_API\CapaDatos.ContabilidadAPI\obj\Debug\net8.0\CapaDatos.ContabilidadAPI.AssemblyInfo.cs
+D:\projects\Contabilidad_API\CapaDatos.ContabilidadAPI\obj\Debug\net8.0\CapaDatos.ContabilidadAPI.csproj.CoreCompileInputs.cache
+D:\projects\Contabilidad_API\CapaDatos.ContabilidadAPI\obj\Debug\net8.0\CapaDatos.ContabilidadAPI.dll
+D:\projects\Contabilidad_API\CapaDatos.ContabilidadAPI\obj\Debug\net8.0\refint\CapaDatos.ContabilidadAPI.dll
+D:\projects\Contabilidad_API\CapaDatos.ContabilidadAPI\obj\Debug\net8.0\CapaDatos.ContabilidadAPI.pdb
+D:\projects\Contabilidad_API\CapaDatos.ContabilidadAPI\obj\Debug\net8.0\CapaDatos.ContabilidadAPI.genruntimeconfig.cache
+D:\projects\Contabilidad_API\CapaDatos.ContabilidadAPI\obj\Debug\net8.0\ref\CapaDatos.ContabilidadAPI.dll
