@@ -61,6 +61,7 @@ namespace CapaNegocio.ContabilidadAPI.Models.DTO
         public int SvdIdCabecera { get; set; }
 
         public int? SvdTgId { get; set; }
+        public string? SvTipoGasto { get; set; } = string.Empty;
 
         public decimal? SvdPrecioUnitario { get; set; }
 
@@ -81,7 +82,8 @@ namespace CapaNegocio.ContabilidadAPI.Models.DTO
         public bool Observado { get; set; }
         public bool Aprobado { get; set; }
         public string? Observacion { get; set; }
-        public List<ComprobantePago> ComprobantesPago { get; set; } = new();
+        // ComprobantesPago ahora se relaciona directamente con Cabecera, no con Detalle
+        // public List<ComprobantePago> ComprobantesPago { get; set; } = new();
 
     }
 }

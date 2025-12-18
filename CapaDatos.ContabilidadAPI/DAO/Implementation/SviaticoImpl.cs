@@ -26,6 +26,7 @@ namespace CapaDatos.ContabilidadAPI.DAO.Implementation
         {
             return await _context.SviaticosCabeceras
                 .Include(c => c.Detalles)
+                .Include(c => c.ComprobantesPago)
                 .Include(e => e.SolicitudEstadoFlujo)
                 .ToListAsync();
         }
@@ -34,7 +35,7 @@ namespace CapaDatos.ContabilidadAPI.DAO.Implementation
         {
             return await _context.SviaticosCabeceras
                 .Include(c => c.Detalles)
-                .ThenInclude(x => x.ComprobantesPago)
+                .Include(c => c.ComprobantesPago) // Los comprobantes ahora se obtienen desde la cabecera
                 .Include(e => e.SolicitudEstadoFlujo)
                 .Where(c => c.SvEmpCodigo == idDocumento)
                 .ToListAsync();
@@ -44,6 +45,7 @@ namespace CapaDatos.ContabilidadAPI.DAO.Implementation
         {
             return await _context.SviaticosCabeceras
                                 .Include(c => c.Detalles)
+                                .Include(c => c.ComprobantesPago)
                                 .Include(e => e.SolicitudEstadoFlujo)
                                 .FirstOrDefaultAsync(c => c.SvId == id);
         }
@@ -54,6 +56,7 @@ namespace CapaDatos.ContabilidadAPI.DAO.Implementation
             {
                 var viatico = await _context.SviaticosCabeceras
                                 .Include(c => c.Detalles)
+                                .Include(c => c.ComprobantesPago)
                                 .Include(e => e.SolicitudEstadoFlujo)
                                 .FirstOrDefaultAsync(c => c.SvId == id);
                 if (viatico == null)
@@ -128,9 +131,10 @@ namespace CapaDatos.ContabilidadAPI.DAO.Implementation
             try
             {
                 //Tomar Mes Actual
-                fechaFin = DateTime.Now;
+                fechaFin = DateTime.Now.AddMonths(-6);
                 fechaInicio = new DateTime(fechaFin.GetValueOrDefault().Year, fechaFin.GetValueOrDefault().Month, 1);
-                
+
+                fechaFin = fechaFin.GetValueOrDefault().AddMonths(6);
 
                 // Construir query base con filtros (sin paginación para el conteo)
                 var queryBase = _context.SviaticosCabeceras.AsQueryable();
@@ -173,7 +177,7 @@ namespace CapaDatos.ContabilidadAPI.DAO.Implementation
                 // 2. Luego obtener viáticos paginados
                 var queryViaticos = queryBase
                     .Include(c => c.Detalles)
-                    .Include(d=>d.ComprobantesPago)
+                    .Include(c => c.ComprobantesPago) // Los comprobantes ahora se obtienen desde la cabecera
                     .Include(e => e.SolicitudEstadoFlujo)
                     .OrderByDescending(s => s.SvFechaCreacion);
 
@@ -184,7 +188,21 @@ namespace CapaDatos.ContabilidadAPI.DAO.Implementation
                     queryViaticos = (IOrderedQueryable<SviaticosCabecera>)queryViaticos.Skip(skip).Take(tamanoPagina.Value);
                 }
 
+                var tipoGastoDict = _context.TipoGastos
+                    .ToDictionary(x => x.TgId, x => x.TgDescripcion);
+
                 var viaticos = await queryViaticos.ToListAsync();
+
+                foreach (var viatico in viaticos)
+                {
+                    foreach (var detalle in viatico.Detalles)
+                    {
+                        detalle.SvTipoGasto = tipoGastoDict.TryGetValue(detalle.SvdTgId.GetValueOrDefault() , out var desc)
+                            ? desc
+                            : string.Empty;
+                    }
+                }
+
 
                 return (viaticos, conteoEstados);
             }
@@ -231,7 +249,8 @@ namespace CapaDatos.ContabilidadAPI.DAO.Implementation
         {
             try
             {
-                var d = await _context.SviaticosDetalles.Include(x => x.ComprobantesPago)
+                // Los comprobantes ya no se relacionan con el detalle, sino con la cabecera
+                var d = await _context.SviaticosDetalles
                              .FirstOrDefaultAsync(c => c.SvdId == id);
                 return d;
             }
@@ -259,6 +278,8 @@ namespace CapaDatos.ContabilidadAPI.DAO.Implementation
                                         .Where(d => !isDetallesNuevos.Contains(d.SvdId))
                                         .ToList();
 
+                // Con DeleteBehavior.Cascade configurado en el DbContext, 
+                // los comprobantes de pago se eliminan automáticamente
                 _context.SviaticosDetalles.RemoveRange(detallesAEliminar);
 
                 // AGREGAR o ACTUALIZAR detalles
@@ -309,6 +330,14 @@ namespace CapaDatos.ContabilidadAPI.DAO.Implementation
                     detalle.Observacion = string.Empty;
                 }
 
+                var comprobantes = sviatico.ComprobantesPago;
+
+                foreach (var detalle in comprobantes)
+                {
+                    if (detalle.Observado.GetValueOrDefault()) { detalle.Observado = null; detalle.Aprobado = null; }
+                    detalle.Observacion = string.Empty;
+                }
+                 
                 await _context.SaveChangesAsync();
                 return true;
             }

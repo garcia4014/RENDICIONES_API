@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 
 namespace CapaDatos.ContabilidadAPI.Models
 {
@@ -110,6 +111,111 @@ namespace CapaDatos.ContabilidadAPI.Models
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Extrae información de un archivo XML de comprobante electrónico SUNAT
+        /// </summary>
+        /// <param name="xmlContent">Contenido del XML como string</param>
+        /// <returns>Datos extraídos del comprobante</returns>
+        public static ComprobanteExtractorResult ExtractFromXml(string xmlContent)
+        {
+            var result = new ComprobanteExtractorResult();
+
+            if (string.IsNullOrWhiteSpace(xmlContent))
+                return result;
+
+            try
+            {
+                XDocument doc = XDocument.Parse(xmlContent);
+                XNamespace cbc = "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2";
+                XNamespace cac = "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2";
+                XNamespace ext = "urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2";
+
+                // Intentar obtener el namespace raíz (puede ser Invoice, CreditNote, DebitNote, etc.)
+                var root = doc.Root;
+                if (root == null)
+                    return result;
+
+                var rootNamespace = root.GetDefaultNamespace();
+
+                // 1. SERIE Y CORRELATIVO (ID del documento)
+                var documentId = root.Element(rootNamespace + "ID")?.Value ?? 
+                                root.Element(cbc + "ID")?.Value;
+                if (!string.IsNullOrEmpty(documentId))
+                {
+                    var parts = documentId.Split('-');
+                    if (parts.Length == 2)
+                    {
+                        result.Series.Add(parts[0].Trim());
+                        result.Correlativos.Add(parts[1].Trim());
+                    }
+                }
+
+                // 2. FECHA DE EMISIÓN
+                var issueDate = root.Element(rootNamespace + "IssueDate")?.Value ??
+                               root.Element(cbc + "IssueDate")?.Value;
+                if (!string.IsNullOrEmpty(issueDate))
+                {
+                    result.FechasEmision.Add(issueDate);
+                }
+
+                // 3. RUC Y RAZÓN SOCIAL DEL EMISOR
+                var accountingSupplierParty = root.Element(rootNamespace + "AccountingSupplierParty") ??
+                                             root.Element(cac + "AccountingSupplierParty");
+                
+                if (accountingSupplierParty != null)
+                {
+                    var party = accountingSupplierParty.Element(cac + "Party");
+                    if (party != null)
+                    {
+                        // RUC
+                        var partyIdentification = party.Element(cac + "PartyIdentification");
+                        var ruc = partyIdentification?.Element(cbc + "ID")?.Value;
+                        if (!string.IsNullOrEmpty(ruc))
+                        {
+                            result.Rucs.Add(ruc);
+                        }
+
+                        // Razón Social
+                        var partyLegalEntity = party.Element(cac + "PartyLegalEntity");
+                        var razonSocial = partyLegalEntity?.Element(cbc + "RegistrationName")?.Value;
+                        if (!string.IsNullOrEmpty(razonSocial))
+                        {
+                            result.RazonesSociales.Add(razonSocial.Trim());
+                        }
+                    }
+                }
+
+                // 4. MONTO TOTAL (varios intentos)
+                // Intentar LegalMonetaryTotal/PayableAmount
+                var legalMonetaryTotal = root.Element(rootNamespace + "LegalMonetaryTotal") ??
+                                        root.Element(cac + "LegalMonetaryTotal");
+                
+                var montoTotal = legalMonetaryTotal?.Element(cbc + "PayableAmount")?.Value;
+                
+                // Si no existe, intentar TaxTotal/TaxAmount + otros
+                if (string.IsNullOrEmpty(montoTotal))
+                {
+                    var taxInclusiveAmount = legalMonetaryTotal?.Element(cbc + "TaxInclusiveAmount")?.Value;
+                    if (!string.IsNullOrEmpty(taxInclusiveAmount))
+                    {
+                        montoTotal = taxInclusiveAmount;
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(montoTotal))
+                {
+                    result.MontosTotales.Add(montoTotal);
+                }
+
+                return result;
+            }
+            catch (Exception)
+            {
+                // Si falla el parsing XML, intentar extraer con regex del texto plano
+                return Extract(xmlContent);
+            }
         }
 
         private static string CleanRazonSocial(string text)

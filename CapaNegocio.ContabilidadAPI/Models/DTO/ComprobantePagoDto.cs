@@ -1,5 +1,6 @@
 using CapaDatos.ContabilidadAPI.Models;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace CapaNegocio.ContabilidadAPI.Models.DTO
 {
@@ -24,9 +25,9 @@ namespace CapaNegocio.ContabilidadAPI.Models.DTO
         public int? SvIdDetalle { get; set; }
 
         /// <summary>
-        /// Tipo de comprobante (1: Factura, 2: Boleta, 3: Recibo, etc.)
+        /// Tipo de comprobante (alfanumérico: "01" Factura, "03" Boleta, "RH" Recibo Honorarios, etc.)
         /// </summary>
-        public int? TipoComprobante { get; set; }
+        public string? TipoComprobante { get; set; }
 
         /// <summary>
         /// Descripción del tipo de comprobante
@@ -94,10 +95,33 @@ namespace CapaNegocio.ContabilidadAPI.Models.DTO
         public bool? Activo { get; set; }
 
         /// <summary>
+        /// ID del tipo de gasto asociado
+        /// </summary>
+        public int? SvTgId { get; set; }
+
+        /// <summary>
+        /// Descripción del tipo de gasto
+        /// </summary>
+        public string? SvTipoGasto { get; set; }
+
+        /// <summary>
         /// Número completo del comprobante (Serie-Correlativo)
         /// </summary>
         public string NumeroCompleto => $"{Serie}-{Correlativo}";
- 
+
+        public string? ResultadoSunat { get; set; }
+
+        public bool? Observado { get; set; } = false;
+        public bool? Aprobado { get; set; } = false;
+        public string? Observacion { get; set; } = string.Empty; 
+        public bool? Exonerado { get; set; } = false; 
+        public bool? Inafecto { get; set; } = false; 
+        public decimal? Igv { get; set; } = 0m; 
+        public decimal? Subtotal { get; set; } = 0m;
+        public bool? IgvEspecial { get; set; } = false;
+        public int? IgvPorcentaje { get; set; }
+
+
     }
 
 
@@ -109,8 +133,8 @@ namespace CapaNegocio.ContabilidadAPI.Models.DTO
         public int SvIdCabecera { get; set; }
         public int SvIdDetalle { get; set; }
 
-        [Range(1, 10, ErrorMessage = "El tipo de comprobante debe estar entre 1 y 10")]
-        public int? TipoComprobante { get; set; }
+        [StringLength(10, ErrorMessage = "El tipo de comprobante no puede exceder 10 caracteres")]
+        public string? TipoComprobante { get; set; }
         [StringLength(100, ErrorMessage = "La descripción no puede exceder 100 caracteres")]
         public string? Descripcion { get; set; }
 
@@ -143,6 +167,17 @@ namespace CapaNegocio.ContabilidadAPI.Models.DTO
         public string? Notas { get; set; }
         public string? Extension { get; set; }
         public int? Observado { get; set; }
+        public bool? IgvEspecial { get; set; } = false;
+        public bool? Exonerado { get; set; } = false;
+        public bool? Inafecto { get; set; } = false;
+        public decimal? Igv { get; set; } = 0m;
+        public decimal? Subtotal { get; set; } = 0m;
+        public int? IgvPorcentaje { get; set; }
+
+        /// <summary>
+        /// ID del tipo de gasto asociado
+        /// </summary>
+        public int? SvTgId { get; set; }
     }
 
     /// <summary>
@@ -169,8 +204,8 @@ namespace CapaNegocio.ContabilidadAPI.Models.DTO
         /// <summary>
         /// Tipo de comprobante
         /// </summary>
-        [Range(1, 10, ErrorMessage = "El tipo de comprobante debe estar entre 1 y 10")]
-        public int? TipoComprobante { get; set; }
+        [StringLength(10, ErrorMessage = "El tipo de comprobante no puede exceder 10 caracteres")]
+        public string? TipoComprobante { get; set; }
 
         /// <summary>
         /// Descripción del comprobante
@@ -211,18 +246,18 @@ namespace CapaNegocio.ContabilidadAPI.Models.DTO
         /// Razón social del emisor
         /// </summary>
         [StringLength(300, ErrorMessage = "La razón social no puede exceder 300 caracteres")]
-        public string? RazonSocial { get; set; }
+        public string? RazonSocial { get; set; } = string.Empty;
 
         /// <summary>
         /// Ruta del archivo
         /// </summary>
         [StringLength(200, ErrorMessage = "La ruta no puede exceder 200 caracteres")]
-        public string? Ruta { get; set; }
+        public string? Ruta { get; set; } = string.Empty;
 
         /// <summary>
         /// Indica si el comprobante es válido según SUNAT
         /// </summary>
-        public bool? ValidoSunat { get; set; }
+        public bool? ValidoSunat { get; set; } = false;
 
         /// <summary>
         /// Notas adicionales
@@ -231,6 +266,15 @@ namespace CapaNegocio.ContabilidadAPI.Models.DTO
         public string? Notas { get; set; }
         public string? Extension { get; set; }
         public string? ResultadoSunat { get; set; }
+        public bool? Exonerado { get; set; } = false;
+        public bool? Inafecto { get; set; } = false;
+        public bool? IgvEspecial { get; set; } = false;
+        public int? IgvPorcentaje { get; set; }
+
+        /// <summary>
+        /// ID del tipo de gasto asociado
+        /// </summary>
+        public int? SvTgId { get; set; }
     }
 
     /// <summary>

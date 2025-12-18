@@ -270,34 +270,97 @@ namespace ContabilidadAPI.Controllers
                     return BadRequest("No se ha proporcionado un archivo válido");
                 }
 
-                if (!extension.ToLower().EndsWith("pdf") && !extension.ToLower().EndsWith("jpg") && !extension.ToLower().EndsWith("png") && !extension.ToLower().EndsWith("tiff"))
+                if (!extension.ToLower().EndsWith("pdf") && !extension.ToLower().EndsWith("jpg") && 
+                    !extension.ToLower().EndsWith("png") && !extension.ToLower().EndsWith("tiff") && 
+                    !extension.ToLower().EndsWith("xml"))
                 {
-                    return BadRequest("Solo se permiten archivos distintos al PDF e imagenes");
+                    return BadRequest("Solo se permiten archivos PDF, imágenes (JPG, PNG, TIFF) o XML");
                 }
 
                 using var memoryStream = new MemoryStream();
                 await file.CopyToAsync(memoryStream);
-                var pdfBytes = memoryStream.ToArray();
-                ApiResponse<OcrResponseDto> result;
-                if (extension.ToUpper().Contains("PDF"))
+                var fileBytes = memoryStream.ToArray();
+                
+                ComprobanteExtractorResult resultOcr;
+
+                if (extension.ToUpper().Contains("XML"))
                 {
-                    result = await _ocrService.ExtractTextFromPdfAsync(pdfBytes, language, OcrPageSegMode.Auto, maxPages);
+                    // Procesar XML directamente
+                    _logger.LogInformation("Procesando archivo XML: {FileName}", file.FileName);
+                    var xmlContent = System.Text.Encoding.UTF8.GetString(fileBytes);
+                    resultOcr = ComprobanteExtractor.ExtractFromXml(xmlContent);
                 }
                 else
                 {
-                    result = await _ocrService.ExtractTextFromImageAsync(pdfBytes, language, OcrPageSegMode.Auto); 
-                }
+                    // Procesar PDF o imagen con OCR
+                    ApiResponse<OcrResponseDto> result;
+                    if (extension.ToUpper().Contains("PDF"))
+                    {
+                        _logger.LogInformation("Procesando archivo PDF: {FileName}", file.FileName);
+                        result = await _ocrService.ExtractTextFromPdfAsync(fileBytes, language, OcrPageSegMode.Auto, maxPages);
+                    }
+                    else
+                    {
+                        _logger.LogInformation("Procesando imagen: {FileName}", file.FileName);
+                        result = await _ocrService.ExtractTextFromImageAsync(fileBytes, language, OcrPageSegMode.Auto); 
+                    }
 
-                var resultOcr = ComprobanteExtractor.Extract(result.Data.ExtractedText);
+                    resultOcr = ComprobanteExtractor.Extract(result.Data.ExtractedText);
+                }
 
                 return Ok(resultOcr);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error procesando PDF: {FileName}", file.FileName);
-                return StatusCode(500, "Error procesando el PDF");
+                _logger.LogError(ex, "Error procesando archivo: {FileName}", file.FileName);
+                return StatusCode(500, $"Error procesando el archivo: {ex.Message}");
             }
 
+        }
+
+        /// <summary>
+        /// Extrae información de un archivo XML de comprobante electrónico
+        /// </summary>
+        /// <param name="file">Archivo XML del comprobante</param>
+        /// <returns>Información extraída del XML</returns>
+        [HttpPost("extract-text-xml")]
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> ExtractTextFromXml(IFormFile file)
+        {
+            try
+            {
+                if (file == null || file.Length == 0)
+                {
+                    return BadRequest("No se ha proporcionado un archivo válido");
+                }
+
+                if (!file.FileName.ToLower().EndsWith(".xml"))
+                {
+                    return BadRequest("Solo se permiten archivos XML");
+                }
+
+                _logger.LogInformation("Procesando archivo XML: {FileName}, Tamaño: {FileSize} bytes", 
+                    file.FileName, file.Length);
+
+                using var memoryStream = new MemoryStream();
+                await file.CopyToAsync(memoryStream);
+                var xmlBytes = memoryStream.ToArray();
+
+                // Convertir bytes a string
+                var xmlContent = System.Text.Encoding.UTF8.GetString(xmlBytes);
+
+                // Extraer información del XML usando el extractor de comprobantes
+                var resultOcr = ComprobanteExtractor.ExtractFromXml(xmlContent);
+
+                _logger.LogInformation("XML procesado exitosamente para {FileName}", file.FileName);
+
+                return Ok(resultOcr);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error procesando XML: {FileName}", file.FileName);
+                return StatusCode(500, "Error procesando el archivo XML");
+            }
         }
 
     }

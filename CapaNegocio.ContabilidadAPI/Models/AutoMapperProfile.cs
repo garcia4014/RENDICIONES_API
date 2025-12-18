@@ -20,11 +20,13 @@ namespace CapaNegocio.ContabilidadAPI.Models
 
             CreateMap<SviaticosCabecera, SviaticosCabeceraDTOResponse>()
                 .ForMember(dest => dest.Detalles, opt => opt.MapFrom(src => src.Detalles))
-                .ForMember(dest => dest.Estado, opt => opt.MapFrom(src => src.SolicitudEstadoFlujo));
+                .ForMember(dest => dest.Estado, opt => opt.MapFrom(src => src.SolicitudEstadoFlujo))
+                .ForMember(dest => dest.ComprobantesPago, opt => opt.MapFrom(src => src.ComprobantesPago));
 
             CreateMap<SviaticosCabecera, SviaticosCabecerav2DTOResponse>()
              .ForMember(dest => dest.Detalles, opt => opt.MapFrom(src => src.Detalles))
              .ForMember(dest => dest.Estado, opt => opt.MapFrom(src => src.SolicitudEstadoFlujo))
+             .ForMember(dest => dest.ComprobantesPago, opt => opt.MapFrom(src => src.ComprobantesPago))
              .ForMember(dest => dest.Empleado, opt => opt.Ignore()); // Inicialmente ignoramos Empleado
 
             CreateMap<SviaticosDetalle, SviaticosDetalleDTO>();
@@ -33,7 +35,8 @@ namespace CapaNegocio.ContabilidadAPI.Models
             CreateMap<MVT_EMPPLA, EmpleadoDTO>(); // Crear un mapa para la tabla de empleados
 
             // Mapeos para ComprobantePago
-            CreateMap<ComprobantePago, ComprobantePagoDto>();
+            CreateMap<ComprobantePago, ComprobantePagoDto>()
+                .ForMember(dest => dest.SvTipoGasto, opt => opt.MapFrom(src => src.TipoGasto != null ? src.TipoGasto.TgDescripcion : null));
             CreateMap<ComprobantePagoCreateDto, ComprobantePago>();
             CreateMap<ComprobantePagoUpdateDto, ComprobantePago>();
 

@@ -16,6 +16,9 @@ public  class SviaticosDetalle
 
     public int? SvdTgId { get; set; }
 
+    [NotMapped] 
+    public string? SvTipoGasto { get; set; } //CAMPO TEMPORAL PARA OBTENER DETALLE
+
     public decimal? SvdPrecioUnitario { get; set; }
 
     public decimal? SvdImporteSolicitado { get; set; }
@@ -41,6 +44,6 @@ public  class SviaticosDetalle
     [ForeignKey("SvdIdCabecera")]
     public SviaticosCabecera Cabecera { get; set; } // = null!;
 
-    // Relación con Comprobantes de Pago
-    public ICollection<ComprobantePago> ComprobantesPago { get; set; } = new List<ComprobantePago>();
+    // Relación con Comprobantes de Pago - COMENTADA: Ahora ComprobantePago se relaciona directamente con Cabecera
+    // public ICollection<ComprobantePago> ComprobantesPago { get; set; } = new List<ComprobantePago>();
 }

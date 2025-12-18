@@ -88,5 +88,22 @@ namespace CapaDatos.ContabilidadAPI.DAO.Interfaces
         /// <returns>Tupla con las estadísticas (rendicionesPendientes, comprobantesCargados, validadosSunat, pendientesValidacion)</returns>
         Task<(int rendicionesPendientes, int comprobantesCargados, int validadosSunat, int pendientesValidacion)> GetRendicionesDashboardAsync(string? svEmpDni, DateTime fechaInicio, DateTime fechaFin, int[] estadosFlujo);
 
+        /// <summary>
+        /// Actualiza el estado de observado de un comprobante
+        /// </summary>
+        /// <param name="comprobanteId">ID del comprobante</param>
+        /// <param name="observado">Estado observado</param>
+        /// <param name="observacion">Comentario de observación</param>
+        /// <returns>True si se actualizó correctamente</returns>
+        Task<bool> ActualizarComprobanteObservado(int comprobanteId, bool observado, string observacion);
+
+        /// <summary>
+        /// Actualiza el estado de aprobado de un comprobante
+        /// </summary>
+        /// <param name="comprobanteId">ID del comprobante</param>
+        /// <param name="aprobado">Estado aprobado</param>
+        /// <returns>True si se actualizó correctamente</returns>
+        Task<bool> ActualizarComprobanteAprobado(int comprobanteId, bool aprobado);
+
     }
 }

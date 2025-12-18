@@ -162,8 +162,10 @@ namespace CapaDatos.ContabilidadAPI
                     .HasMaxLength(12)
                     .HasColumnName("SV_RUC");
                 entity.Property(e => e.SvPersonaEntrevistar)
+                    .HasMaxLength(100)
                     .HasColumnName("SV_PERSONA_ENTREVISTAR");
                 entity.Property(e => e.SvEmpresa)
+                    .HasMaxLength(100)
                     .HasColumnName("SV_EMPRESA");
                 entity.Property(e => e.SvTotalSolicitado)
                     .HasColumnType("numeric(18, 2)")
@@ -403,19 +405,28 @@ namespace CapaDatos.ContabilidadAPI
                     .HasColumnName("Notas");
                 entity.Property(e => e.Activo)
                     .HasColumnName("Activo");
+                entity.Property(e => e.SvTgId)
+                    .HasColumnName("SV_TG_ID");
 
                 // Relaciones FK
                 entity.HasOne(d => d.SviaticosCabecera)
                     .WithMany(c => c.ComprobantesPago)
                     .HasForeignKey(d => d.SvIdCabecera)
                     .HasConstraintName("COMPROBANTE_PAGO_FK_CABECERA")
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(d => d.TipoGasto)
+                    .WithMany()
+                    .HasForeignKey(d => d.SvTgId)
+                    .HasConstraintName("COMPROBANTE_PAGO_FK_TIPO_GASTO")
                     .OnDelete(DeleteBehavior.Restrict);
 
-                entity.HasOne(d => d.SviaticosDetalle)
-                    .WithMany(det => det.ComprobantesPago)
-                    .HasForeignKey(d => d.SvIdDetalle)
-                    .HasConstraintName("COMPROBANTE_PAGO_FK_DETALLE")
-                    .OnDelete(DeleteBehavior.Restrict);
+                // Relación con SviaticosDetalle - COMENTADA: Ahora solo se relaciona con Cabecera
+                // entity.HasOne(d => d.SviaticosDetalle)
+                //     .WithMany(det => det.ComprobantesPago)
+                //     .HasForeignKey(d => d.SvIdDetalle)
+                //     .HasConstraintName("COMPROBANTE_PAGO_FK_DETALLE")
+                //     .OnDelete(DeleteBehavior.Cascade);
             });
 
             // Llamada al partial para extensiones (mantener al final)

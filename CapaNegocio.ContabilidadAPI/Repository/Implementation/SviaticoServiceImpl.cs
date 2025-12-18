@@ -116,15 +116,15 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                     SvEmpCantidad = dto.SvEmpCantidad,
                     SvNumeroDias = dto.SvNumeroDias,
                     SvOrdenVenta = dto.SvOrdenVenta,
-                    SvDescripcion = dto.SvDescripcion,
+                    SvDescripcion = dto.SvDescripcion?.Length > 200 ? dto.SvDescripcion.Substring(0, 200) : dto.SvDescripcion,
                     SvRuc = dto.SvRuc,
-                    SvContacto = dto.SvContacto,
-                    SvObjetivoVisita = dto.SvObjetivoVisita,
-                    SvLocalidad = dto.SvLocalidad,
+                    SvContacto = dto.SvContacto?.Length > 200 ? dto.SvContacto.Substring(0, 200) : dto.SvContacto,
+                    SvObjetivoVisita = dto.SvObjetivoVisita?.Length > 300 ? dto.SvObjetivoVisita.Substring(0, 300) : dto.SvObjetivoVisita,
+                    SvLocalidad = dto.SvLocalidad?.Length > 300 ? dto.SvLocalidad.Substring(0, 300) : dto.SvLocalidad,
                     SvTotalSolicitado = dto.SvTotalSolicitado,
                     SvSefId = 1,
-                    SvEmpresa = dto.SvEmpresa,
-                    SvPersonaEntrevistar = dto.SvPersonaEntrevistar,
+                    SvEmpresa = dto.SvEmpresa?.Length > 100 ? dto.SvEmpresa.Substring(0, 100) : dto.SvEmpresa,
+                    SvPersonaEntrevistar = dto.SvPersonaEntrevistar?.Length > 100 ? dto.SvPersonaEntrevistar.Substring(0, 100) : dto.SvPersonaEntrevistar,
                     SvPoliticas = dto.SvPoliticas,
 
                     Detalles = dto.Detalles.Select(d => new SviaticosDetalle
@@ -134,7 +134,7 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                         SvdPrecioUnitario = d.SvdPrecioUnitario,
                         SvdImporteSolicitado = d.SvdImporteSolicitado,
                         SvdSubtotal = d.SvdSubtotal,
-                        SvdDescripcion = d.SvdDescripcion,
+                        SvdDescripcion = d.SvdDescripcion?.Length > 200 ? d.SvdDescripcion.Substring(0, 200) : d.SvdDescripcion,
                         SvdCantEmpleado = d.SvdCantEmpleado,
                         SvdFechaInicio = d.SvdFechaInicio,
                         SvdFechaFin = d.SvdFechaFin,
@@ -150,6 +150,9 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                 if (!resultado)
                     return new ApiResponse<SviaticosCabeceraDTOResponse>("Error al guardar");
 
+                // Recargar la cabecera desde la BD para obtener el ID asignado y todos los datos
+                var cabeceraGuardada = await _dao.GetSviaticosCabecera(cabecera.SvId);
+                
                 var createDto = new NotificacionCreateDto()
                 {
                     CodUsuReceptor = dto.SvEmpDni ?? string.Empty,
@@ -163,7 +166,7 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                  
                 var response = await _notificacionesService.CreateAsync(createDto);
                  
-                var cabeceraMapper = _mapper.Map<SviaticosCabeceraDTOResponse>(cabecera);
+                var cabeceraMapper = _mapper.Map<SviaticosCabeceraDTOResponse>(cabeceraGuardada);
     
                 return new ApiResponse<SviaticosCabeceraDTOResponse>(cabeceraMapper);
             }
@@ -182,29 +185,37 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                 if (cabecera == null)
                     return new ApiResponse<SviaticosCabeceraDTOResponse>("Cabecera no encontrada");
 
-                if (dto.Observado == "1")
+
+                cabecera.SvEmpCodigo = dto.SvEmpCodigo ?? cabecera.SvEmpCodigo;
+                cabecera.SvEmpDni = dto.SvEmpDni ?? cabecera.SvEmpDni;
+                cabecera.SvFechaInicio = dto.SvFechaInicio ?? cabecera.SvFechaInicio;
+                cabecera.SvFechaRetorno = dto.SvFechaRetorno ?? cabecera.SvFechaRetorno;
+                cabecera.SvEmpCantidad = dto.SvEmpCantidad ?? cabecera.SvEmpCantidad;
+                cabecera.SvNumeroDias = dto.SvNumeroDias ?? cabecera.SvNumeroDias;
+                cabecera.SvOrdenVenta = dto.SvOrdenVenta ?? cabecera.SvOrdenVenta;
+                cabecera.SvDescripcion = dto.SvDescripcion?.Length > 200 ? dto.SvDescripcion.Substring(0, 200) : dto.SvDescripcion ?? cabecera.SvDescripcion;
+                cabecera.SvRuc = dto.SvRuc ?? cabecera.SvRuc;
+                cabecera.SvContacto = dto.SvContacto?.Length > 200 ? dto.SvContacto.Substring(0, 200) : dto.SvContacto ?? cabecera.SvContacto;
+                cabecera.SvObjetivoVisita = dto.SvObjetivoVisita?.Length > 300 ? dto.SvObjetivoVisita.Substring(0, 300) : dto.SvObjetivoVisita ?? cabecera.SvObjetivoVisita;
+                cabecera.SvLocalidad = dto.SvLocalidad?.Length > 300 ? dto.SvLocalidad.Substring(0, 300) : dto.SvLocalidad ?? cabecera.SvLocalidad;
+
+                if (dto.TipoOperacion != "SUSTENTO")
                 {
-                    dto.SvSefId = 1; 
+                    cabecera.SvTotalSolicitado =
+                        dto.SvTotalSolicitado ?? cabecera.SvTotalSolicitado;
                 }
 
-                // Mapear los cambios de la cabecera
-                cabecera.SvEmpCodigo = dto.SvEmpCodigo;
-                cabecera.SvEmpDni = dto.SvEmpDni;
-                cabecera.SvFechaInicio = dto.SvFechaInicio;
-                cabecera.SvFechaRetorno = dto.SvFechaRetorno;
-                cabecera.SvEmpCantidad = dto.SvEmpCantidad;
-                cabecera.SvNumeroDias = dto.SvNumeroDias;
-                cabecera.SvOrdenVenta = dto.SvOrdenVenta;
-                cabecera.SvDescripcion = dto.SvDescripcion;
-                cabecera.SvRuc = dto.SvRuc;
-                cabecera.SvContacto = dto.SvContacto;
-                cabecera.SvObjetivoVisita = dto.SvObjetivoVisita;
-                cabecera.SvLocalidad = dto.SvLocalidad;
-                cabecera.SvTotalSolicitado = dto.SvTotalSolicitado;
-                cabecera.SvSefId = dto.SvSefId;
-                cabecera.SvEmpresa = dto.SvEmpresa;
-                cabecera.SvPersonaEntrevistar = dto.SvPersonaEntrevistar;
-                cabecera.SvPoliticas = dto.SvPoliticas;
+                cabecera.SvSefId = cabecera.SvSefId;
+                if (dto.Observado == "1")
+                {
+                    cabecera.SvSefId = 1;
+                    cabecera.Comentarios = null;
+                }
+
+                cabecera.SvEmpresa = dto.SvEmpresa?.Length > 100 ? dto.SvEmpresa.Substring(0, 100) : dto.SvEmpresa ?? cabecera.SvEmpresa;
+                cabecera.SvPersonaEntrevistar = dto.SvPersonaEntrevistar?.Length > 100 ? dto.SvPersonaEntrevistar.Substring(0, 100) : dto.SvPersonaEntrevistar ?? cabecera.SvPersonaEntrevistar;
+                cabecera.SvPoliticas = dto.SvPoliticas ?? cabecera.SvPoliticas;
+
 
                 var detalles = dto.Detalles.Select(d => new SviaticosDetalle
                 {
@@ -215,7 +226,7 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                     SvdPrecioUnitario = d.SvdPrecioUnitario,
                     SvdImporteSolicitado = d.SvdImporteSolicitado,
                     SvdSubtotal = d.SvdSubtotal,
-                    SvdDescripcion = d.SvdDescripcion,
+                    SvdDescripcion = d.SvdDescripcion?.Length > 200 ? d.SvdDescripcion.Substring(0, 200) : d.SvdDescripcion,
                     SvdCantEmpleado = d.SvdCantEmpleado,
                     SvdFechaInicio = d.SvdFechaInicio,
                     SvdFechaFin = d.SvdFechaFin,
@@ -229,7 +240,9 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                 if (!result)
                     return new ApiResponse<SviaticosCabeceraDTOResponse>("Error al actualizar");
 
-                var cabeceraMapper = _mapper.Map<SviaticosCabeceraDTOResponse>(cabecera);
+                // Recargar la cabecera con todos sus datos actualizados (detalles y comprobantes)
+                var cabeceraActualizada = await _dao.GetSviaticosCabecera(cabecera.SvId);
+                var cabeceraMapper = _mapper.Map<SviaticosCabeceraDTOResponse>(cabeceraActualizada);
 
 
                 var createDto = new NotificacionCreateDto()

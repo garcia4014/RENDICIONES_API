@@ -27,7 +27,7 @@ namespace CapaDatos.ContabilidadAPI.DAO.Implementation
                 return await _context.ComprobantesPago
                     .Where(c => c.Activo == true)
                     .Include(c => c.SviaticosCabecera)
-                    .Include(c => c.SviaticosDetalle)
+                    .Include(c => c.TipoGasto)
                     .OrderByDescending(c => c.FechaCarga)
                     .ToListAsync();
             }
@@ -47,7 +47,7 @@ namespace CapaDatos.ContabilidadAPI.DAO.Implementation
                 return await _context.ComprobantesPago
                     .Where(c => c.Id == id && c.Activo == true)
                     .Include(c => c.SviaticosCabecera)
-                    .Include(c => c.SviaticosDetalle)
+                    .Include(c => c.TipoGasto)
                     .FirstOrDefaultAsync();
             }
             catch (Exception ex)
@@ -55,7 +55,7 @@ namespace CapaDatos.ContabilidadAPI.DAO.Implementation
                 throw new Exception($"Error al obtener comprobante de pago por ID: {ex.Message}", ex);
             }
         }
-
+          
         /// <summary>
         /// Obtiene comprobantes de pago por ID de cabecera de viáticos
         /// </summary>
@@ -66,7 +66,7 @@ namespace CapaDatos.ContabilidadAPI.DAO.Implementation
                 return await _context.ComprobantesPago
                     .Where(c => c.SvIdCabecera == svIdCabecera && c.Activo == true)
                     .Include(c => c.SviaticosCabecera)
-                    .Include(c => c.SviaticosDetalle)
+                    .Include(c => c.TipoGasto)
                     .OrderByDescending(c => c.FechaCarga)
                     .ToListAsync();
             }
@@ -77,16 +77,18 @@ namespace CapaDatos.ContabilidadAPI.DAO.Implementation
         }
 
         /// <summary>
-        /// Obtiene comprobantes de pago por ID de detalle de viáticos
+        /// Obtiene comprobantes de pago por ID de detalle de viáticos (OBSOLETO - ahora filtra por SvIdDetalle en la tabla)
+        /// NOTA: Esta función mantiene compatibilidad pero la relación FK ya no existe
         /// </summary>
         public async Task<List<ComprobantePago>> GetByDetalleIdAsync(int svIdDetalle)
         {
             try
             {
+                // Aunque la FK no existe, aún podemos filtrar por el campo SvIdDetalle
                 return await _context.ComprobantesPago
                     .Where(c => c.SvIdDetalle == svIdDetalle && c.Activo == true)
                     .Include(c => c.SviaticosCabecera)
-                    .Include(c => c.SviaticosDetalle)
+                    .Include(c => c.TipoGasto)
                     .OrderByDescending(c => c.FechaCarga)
                     .ToListAsync();
             }
@@ -148,6 +150,8 @@ namespace CapaDatos.ContabilidadAPI.DAO.Implementation
                 existingComprobante.Ruta = comprobante.Ruta;
                 existingComprobante.ValidoSunat = comprobante.ValidoSunat;
                 existingComprobante.Notas = comprobante.Notas;
+                existingComprobante.Inafecto = comprobante.Inafecto;
+                existingComprobante.Exonerado = comprobante.Exonerado;
 
                 await _context.SaveChangesAsync();
 
@@ -195,7 +199,7 @@ namespace CapaDatos.ContabilidadAPI.DAO.Implementation
                 return await _context.ComprobantesPago
                     .Where(c => c.Serie == serie && c.Correlativo == correlativo && c.Activo == true)
                     .Include(c => c.SviaticosCabecera)
-                    .Include(c => c.SviaticosDetalle)
+                    .Include(c => c.TipoGasto)
                     .ToListAsync();
             }
             catch (Exception ex)
@@ -214,7 +218,7 @@ namespace CapaDatos.ContabilidadAPI.DAO.Implementation
                 return await _context.ComprobantesPago
                     .Where(c => c.Ruc == ruc && c.Activo == true)
                     .Include(c => c.SviaticosCabecera)
-                    .Include(c => c.SviaticosDetalle)
+                    .Include(c => c.TipoGasto)
                     .OrderByDescending(c => c.FechaCarga)
                     .ToListAsync();
             }
@@ -236,7 +240,7 @@ namespace CapaDatos.ContabilidadAPI.DAO.Implementation
                                c.FechaEmision <= fechaFin &&
                                c.Activo == true)
                     .Include(c => c.SviaticosCabecera)
-                    .Include(c => c.SviaticosDetalle)
+                    .Include(c => c.TipoGasto)
                     .OrderByDescending(c => c.FechaCarga)
                     .ToListAsync();
             }
@@ -288,11 +292,11 @@ namespace CapaDatos.ContabilidadAPI.DAO.Implementation
                 var rendicionesPendientes = await rendicionesPendientesQuery.CountAsync();
 
                 // Obtener comprobantes para este empleado en el rango de fechas
+                // Ahora los comprobantes se relacionan directamente con la cabecera
                 var comprobantesQuery =
                     from cp in _context.ComprobantesPago
-                    join sd in _context.SviaticosDetalles on cp.SvIdDetalle equals sd.SvdId
-                    join sc in _context.SviaticosCabeceras on sd.SvdIdCabecera equals sc.SvId
-                    where cp.FechaCarga >= fechaInicio && cp.FechaCarga <= fechaFin
+                    join sc in _context.SviaticosCabeceras on cp.SvIdCabecera equals sc.SvId
+                    where cp.FechaCarga >= fechaInicio && cp.FechaCarga <= fechaFin 
                     select new { cp, sc };
 
                 if (!string.IsNullOrEmpty(svEmpDni))
@@ -321,7 +325,48 @@ namespace CapaDatos.ContabilidadAPI.DAO.Implementation
             }
         }
 
+        public async Task<bool> ActualizarComprobanteObservado(int comprobanteId, bool observado, string observacion)
+        {
+            try
+            {
+                var comprobante = await _context.ComprobantesPago
+                    .FirstOrDefaultAsync(c => c.Id == comprobanteId);
 
+                if (comprobante == null)
+                    return false;
+
+                comprobante.Observado = observado;
+                comprobante.Observacion = observacion;
+
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Error al actualizar comprobante observado: {ex.Message}", ex);
+            }
+        }
+
+        public async Task<bool> ActualizarComprobanteAprobado(int comprobanteId, bool aprobado)
+        {
+            try
+            {
+                var comprobante = await _context.ComprobantesPago
+                    .FirstOrDefaultAsync(c => c.Id == comprobanteId);
+
+                if (comprobante == null)
+                    return false;
+
+                comprobante.Aprobado = aprobado;
+
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Error al actualizar comprobante aprobado: {ex.Message}", ex);
+            }
+        }
 
     }
 }

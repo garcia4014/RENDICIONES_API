@@ -21,5 +21,6 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Interfaces
             string clientSecret, 
             string rucConsultante, 
             SunatComprobanteRequestDto request);
+        
     }
 }

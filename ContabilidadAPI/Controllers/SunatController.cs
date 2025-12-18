@@ -2,11 +2,13 @@ using Azure.Core;
 using CapaDatos.ContabilidadAPI.DAO.Interfaces;
 using CapaNegocio.ContabilidadAPI.Models;
 using CapaNegocio.ContabilidadAPI.Models.DTO;
+using CapaNegocio.ContabilidadAPI.Repository.Implementation;
 using CapaNegocio.ContabilidadAPI.Repository.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
+using Hangfire;
 
 namespace ContabilidadAPI.Controllers
 {
@@ -25,6 +27,8 @@ namespace ContabilidadAPI.Controllers
         private readonly SunatConfigurationDto _sunatConfig;
         private readonly ISviatico _sviatico;
         private readonly IComprobantePago _comprobanteImp;
+        private readonly IComprobantePagoService _comprobanteRepository;
+        private readonly IBackgroundJobClient _backgroundJobClient;
 
         public SunatController(
             ISunatService sunatService,
@@ -33,7 +37,9 @@ namespace ContabilidadAPI.Controllers
             ILogger<SunatController> logger,
             IOptions<SunatConfigurationDto> sunatConfig,
             ISviatico sviatico,
-            IComprobantePago comprobanteImp
+            IComprobantePago comprobanteImp,
+            IComprobantePagoService comprobanteRepository,
+            IBackgroundJobClient backgroundJobClient
             )
         {
             _sunatService = sunatService;
@@ -42,14 +48,11 @@ namespace ContabilidadAPI.Controllers
             _logger = logger;
             _sunatConfig = sunatConfig.Value;
             _sviatico = sviatico;
+            _backgroundJobClient = backgroundJobClient;
             _comprobanteImp = comprobanteImp;
+            _comprobanteRepository = comprobanteRepository;
         }
 
-        /// <summary>
-        /// Obtiene un token de acceso de SUNAT
-        /// </summary>
-        /// <param name="request">Credenciales de SUNAT</param>
-        /// <returns>Token de acceso válido</returns>
         [HttpPost("token")]
         [ProducesResponseType(typeof(ApiResponse<SunatTokenResponseDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse<object>), 400)]
@@ -86,13 +89,6 @@ namespace ContabilidadAPI.Controllers
             }
         }
 
-        /// <summary>
-        /// Valida un comprobante de pago con token existente
-        /// </summary>
-        /// <param name="rucConsultante">RUC de quien realiza la consulta</param>
-        /// <param name="token">Token de acceso válido</param>
-        /// <param name="request">Datos del comprobante a validar</param>
-        /// <returns>Resultado de la validación</returns>
         [HttpPost("validar-comprobante")]
         [ProducesResponseType(typeof(ApiResponse<SunatComprobanteResponseDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse<object>), 400)]
@@ -141,26 +137,24 @@ namespace ContabilidadAPI.Controllers
             }
         }
 
-        /// <summary>
-        /// Valida un comprobante de pago con token existente
-        /// </summary>
-        /// <param name="rucConsultante">RUC de quien realiza la consulta</param>
-        /// <param name="token">Token de acceso válido</param>
-        /// <param name="request">Datos del comprobante a validar</param>
-        /// <returns>Resultado de la validación</returns>
         [HttpPost("validar-comprobante-auto")]
         [ProducesResponseType(typeof(ApiResponse<SunatComprobanteResponseDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse<object>), 400)]
         [ProducesResponseType(typeof(ApiResponse<object>), 401)]
         [ProducesResponseType(typeof(ApiResponse<object>), 500)]
-        public async Task<ActionResult<ApiResponse<SunatComprobanteResponseDto>>> ValidarComprobanteAuto( 
-             int sviaticoDetalle
+        public async Task<ActionResult<ApiResponse<SunatComprobanteResponseDto>>> ValidarComprobanteAuto(
+              [FromQuery, Required] int detalleComprobante
             )
         {
             try
-            {
-                var detalle = await _sviatico.GetSviaticosDetalle(sviaticoDetalle);
-                var comprobante = detalle.ComprobantesPago.FirstOrDefault(x => x.Activo) ;
+            { 
+                var comprobante = await _comprobanteRepository.GetById(detalleComprobante); 
+
+                if (comprobante == null || !comprobante.Activo)
+                {
+                    return BadRequest(new ApiResponse<object>(null, "No se encontró un comprobante activo para este detalle"));
+                }
+
                 var responseAuthSunat = await _tokenService.ObtenerTokenAsync(_sunatConfig.ClientId, _sunatConfig.ClientSecret);
                 var token = responseAuthSunat.Data.access_token;
 
@@ -169,7 +163,7 @@ namespace ContabilidadAPI.Controllers
 
                 SunatComprobanteRequestDto request = new();
                 request.numRuc = comprobante.Ruc.ToString() ?? string.Empty;
-                request.codComp = comprobante.TipoComprobante.ToString().PadLeft(2,'0') ?? string.Empty;
+                request.codComp = comprobante.TipoComprobante?.PadLeft(2,'0') ?? string.Empty;
                 request.numeroSerie = comprobante.Serie ?? string.Empty;
                 request.numero = comprobante.Correlativo ?? string.Empty;
                 request.fechaEmision = comprobante.FechaEmision.GetValueOrDefault().ToString("dd/MM/yyyy");
@@ -199,10 +193,143 @@ namespace ContabilidadAPI.Controllers
             }
         }
 
+        /// <summary>
+        /// Valida múltiples comprobantes de forma masiva en segundo plano usando Hangfire
+        /// </summary>
+        /// <param name="request">Lista de IDs de comprobantes a validar</param>
+        /// <returns>Confirmación de que el proceso se inició</returns>
+        [HttpPost("validar-comprobantes-masivo")]
+        [ProducesResponseType(typeof(ApiResponse<ValidacionMasivaResponseDto>), 200)]
+        [ProducesResponseType(typeof(ApiResponse<object>), 400)]
+        public ActionResult<ApiResponse<ValidacionMasivaResponseDto>> ValidarComprobantesMasivo(
+            [FromBody] ValidacionMasivaRequestDto request)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(new ApiResponse<object>("Datos de solicitud inválidos"));
+                }
 
+                if (request.IdsComprobantes == null || !request.IdsComprobantes.Any())
+                {
+                    return BadRequest(new ApiResponse<object>("Debe proporcionar al menos un ID de comprobante"));
+                }
 
+                if (request.IdsComprobantes.Count > 1000)
+                {
+                    return BadRequest(new ApiResponse<object>("El límite máximo es 1000 comprobantes por solicitud"));
+                }
 
+                _logger.LogInformation("Iniciando validación masiva de {Count} comprobantes", request.IdsComprobantes.Count);
 
+                // Encolar trabajos en Hangfire
+                var jobIds = new List<string>();
+                foreach (var comprobanteId in request.IdsComprobantes)
+                {
+                    var jobId = _backgroundJobClient.Enqueue<IComprobantePagoService>(
+                        service => service.ValidarComprobanteEnSunatAsync(comprobanteId));
+                    
+                    jobIds.Add(jobId);
+                }
+
+                var response = new ValidacionMasivaResponseDto
+                {
+                    TotalComprobantes = request.IdsComprobantes.Count,
+                    JobIds = jobIds,
+                    FechaInicio = DateTime.UtcNow,
+                    Estado = "Procesando"
+                };
+
+                _logger.LogInformation("Validación masiva iniciada. Total: {Total}, Jobs creados: {Jobs}", 
+                    response.TotalComprobantes, jobIds.Count);
+
+                return Ok(new ApiResponse<ValidacionMasivaResponseDto>(
+                    response, 
+                    $"Validación masiva iniciada correctamente. {response.TotalComprobantes} comprobantes en cola."));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error iniciando validación masiva");
+                return StatusCode(500, new ApiResponse<object>("Error interno del servidor al iniciar validación masiva"));
+            }
+        }
+
+        /// <summary>
+        /// Consulta el estado de una validación masiva
+        /// </summary>
+        /// <param name="jobIds">Lista de IDs de trabajos Hangfire</param>
+        /// <returns>Estado de los trabajos</returns>
+        [HttpPost("estado-validacion-masiva")]
+        [ProducesResponseType(typeof(ApiResponse<EstadoValidacionMasivaDto>), 200)]
+        [ProducesResponseType(typeof(ApiResponse<object>), 400)]
+        public ActionResult<ApiResponse<EstadoValidacionMasivaDto>> ObtenerEstadoValidacionMasiva(
+            [FromBody] EstadoValidacionMasivaRequestDto request)
+        {
+            try
+            {
+                if (request.JobIds == null || !request.JobIds.Any())
+                {
+                    return BadRequest(new ApiResponse<object>("Debe proporcionar al menos un Job ID"));
+                }
+
+                var monitoringApi = JobStorage.Current.GetMonitoringApi();
+                
+                int completados = 0;
+                int enProceso = 0;
+                int fallidos = 0;
+                int pendientes = 0;
+
+                foreach (var jobId in request.JobIds)
+                {
+                    var jobDetails = monitoringApi.JobDetails(jobId);
+                    
+                    if (jobDetails != null && jobDetails.History != null)
+                    {
+                        var lastState = jobDetails.History.FirstOrDefault()?.StateName;
+                        
+                        switch (lastState)
+                        {
+                            case "Succeeded":
+                                completados++;
+                                break;
+                            case "Processing":
+                                enProceso++;
+                                break;
+                            case "Failed":
+                                fallidos++;
+                                break;
+                            case "Enqueued":
+                            case "Scheduled":
+                                pendientes++;
+                                break;
+                        }
+                    }
+                }
+
+                var total = request.JobIds.Count;
+                var porcentajeCompletado = total > 0 ? (completados * 100.0) / total : 0;
+
+                var response = new EstadoValidacionMasivaDto
+                {
+                    TotalJobs = total,
+                    Completados = completados,
+                    EnProceso = enProceso,
+                    Fallidos = fallidos,
+                    Pendientes = pendientes,
+                    PorcentajeCompletado = Math.Round(porcentajeCompletado, 2)
+                };
+
+                return Ok(new ApiResponse<EstadoValidacionMasivaDto>(
+                    response,
+                    $"Estado: {completados}/{total} completados"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error consultando estado de validación masiva");
+                return StatusCode(500, new ApiResponse<object>("Error interno del servidor"));
+            }
+        } 
 
         /// <summary>
         /// Valida un comprobante de pago de forma completa (obtiene token automáticamente)
@@ -353,5 +480,47 @@ namespace ContabilidadAPI.Controllers
 
         [Required]
         public SunatComprobanteRequestDto ComprobanteRequest { get; set; } = new();
+    }
+
+    /// <summary>
+    /// DTO para solicitud de validación masiva
+    /// </summary>
+    public class ValidacionMasivaRequestDto
+    {
+        [Required]
+        public List<int> IdsComprobantes { get; set; } = new();
+    }
+
+    /// <summary>
+    /// DTO para respuesta de validación masiva
+    /// </summary>
+    public class ValidacionMasivaResponseDto
+    {
+        public int TotalComprobantes { get; set; }
+        public List<string> JobIds { get; set; } = new();
+        public DateTime FechaInicio { get; set; }
+        public string Estado { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// DTO para solicitud de estado de validación masiva
+    /// </summary>
+    public class EstadoValidacionMasivaRequestDto
+    {
+        [Required]
+        public List<string> JobIds { get; set; } = new();
+    }
+
+    /// <summary>
+    /// DTO para respuesta de estado de validación masiva
+    /// </summary>
+    public class EstadoValidacionMasivaDto
+    {
+        public int TotalJobs { get; set; }
+        public int Completados { get; set; }
+        public int EnProceso { get; set; }
+        public int Fallidos { get; set; }
+        public int Pendientes { get; set; }
+        public double PorcentajeCompletado { get; set; }
     }
 }

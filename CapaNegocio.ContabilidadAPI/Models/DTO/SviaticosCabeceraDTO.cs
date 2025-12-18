@@ -44,7 +44,7 @@ namespace CapaNegocio.ContabilidadAPI.Models.DTO
 
         public string? SvEmpresa { get; set; }
         public string? SvPersonaEntrevistar { get; set; }
-    
+
         public bool? SvPoliticas { get; set; }
 
         public List<SviaticosDetalleDTO> Detalles { get; set; } = new();
@@ -86,10 +86,11 @@ namespace CapaNegocio.ContabilidadAPI.Models.DTO
 
         public string? SvEmpresa { get; set; }
         public string? SvPersonaEntrevistar { get; set; }
- 
+
         public bool? SvPoliticas { get; set; }
 
         public string? Observado { get; set; }
+        public string? TipoOperacion { get; set; } = string.Empty;
         public List<SviaticosDetalleUpdateDTO> Detalles { get; set; } = new();
     }
 
@@ -113,11 +114,12 @@ namespace CapaNegocio.ContabilidadAPI.Models.DTO
         public int SvSefId { get; set; }
         public string? SvEmpresa { get; set; }
         public string? SvPersonaEntrevistar { get; set; }
-        public bool? SvPoliticas { get; set; } 
+        public bool? SvPoliticas { get; set; }
         public DateTime SvFechaCreacion { get; set; }
         public string? Comentarios { get; set; }
         public SolicitudEstadoFlujoDTO Estado { get; set; } = new();
         public List<SviaticosDetalleDTOResponse> Detalles { get; set; } = new();
+        public List<ComprobantePagoDto> ComprobantesPago { get; set; } = new();
     }
 
     public class EmpleadoDTO
@@ -182,13 +184,15 @@ namespace CapaNegocio.ContabilidadAPI.Models.DTO
         public int SvSefId { get; set; }
         public string? SvEmpresa { get; set; }
         public string? SvPersonaEntrevistar { get; set; }
-      
+
         public bool? SvPoliticas { get; set; }
 
 
         public SolicitudEstadoFlujoDTO Estado { get; set; } = new();
 
         public List<SviaticosDetalleDTOResponse> Detalles { get; set; } = new();
+
+        public List<ComprobantePagoDto> ComprobantesPago { get; set; } = new();
 
         public EmpleadoDTO? Empleado { get; set; }
     }
@@ -239,19 +243,8 @@ namespace CapaNegocio.ContabilidadAPI.Models.DTO
     /// </summary>
     public class ViaticosFiltradosResponseDto
     {
-        /// <summary>
-        /// Lista de viáticos paginados
-        /// </summary>
         public IEnumerable<SviaticosCabeceraDTOResponse> Viaticos { get; set; } = new List<SviaticosCabeceraDTOResponse>();
-
-        /// <summary>
-        /// Conteo de viáticos por estado (aplicando los mismos filtros)
-        /// </summary>
         public ConteoEstadosDto ConteoEstados { get; set; } = new ConteoEstadosDto();
-
-        /// <summary>
-        /// Información de paginación
-        /// </summary>
         public PaginacionInfoDto? PaginacionInfo { get; set; }
     }
 
@@ -273,7 +266,7 @@ namespace CapaNegocio.ContabilidadAPI.Models.DTO
         /// <summary>
         /// Total de viáticos que coinciden con los filtros
         /// </summary>
-        public int Total => Solicitado + Abierto + Aprobado + Rechazado + PagoEfectuado + 
+        public int Total => Solicitado + Abierto + Aprobado + Rechazado + PagoEfectuado +
                            Observado + Rendido + RendicionObservada + RendicionCerrada;
     }
 
@@ -288,5 +281,23 @@ namespace CapaNegocio.ContabilidadAPI.Models.DTO
         public int TotalPaginas { get; set; }
         public bool TienePaginaAnterior { get; set; }
         public bool TienePaginaSiguiente { get; set; }
+    }
+
+    /// <summary>
+    /// DTO extendido que incluye comprobantes agrupados por detalle
+    /// </summary>
+    public class SviaticoConComprobantesDto
+    {
+        public SviaticosCabeceraDTOResponse Cabecera { get; set; } = new();
+        public List<DetalleConComprobantesDto> DetallesConComprobantes { get; set; } = new();
+    }
+
+    /// <summary>
+    /// DTO que agrupa un detalle con sus comprobantes asociados
+    /// </summary>
+    public class DetalleConComprobantesDto
+    {
+        public SviaticosDetalleDTOResponse Detalle { get; set; } = new();
+        public List<ComprobantePagoDto> Comprobantes { get; set; } = new();
     }
 }

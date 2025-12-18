@@ -1,3 +1,4 @@
+using CapaDatos.ContabilidadAPI.Models;
 using CapaNegocio.ContabilidadAPI.Models;
 using CapaNegocio.ContabilidadAPI.Models.DTO;
 using CapaNegocio.ContabilidadAPI.Repository.Interfaces;
@@ -79,7 +80,7 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                     _logger.LogError("Error al consultar comprobante. Status: {StatusCode}, Response: {Response}",
                         response.StatusCode, responseContent);
 
-                    return new ApiResponse<SunatComprobanteResponseDto>($"Error en la consulta: {response.StatusCode}");
+                    return new ApiResponse<SunatComprobanteResponseDto>($"Los datos del comprobante no se lograron validar en SUNAT, revise la información nuevamente.");
                 }
             }
             catch (HttpRequestException ex)
@@ -97,8 +98,7 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                 _logger.LogError(ex, "Error inesperado al consultar comprobante");
                 return new ApiResponse<SunatComprobanteResponseDto>("Error inesperado en la consulta");
             }
-        }
-
+        } 
         public string ObtenerDescripcionEstadoComprobante(int estadoCp)
         {
             return estadoCp switch
@@ -138,8 +138,7 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                 "20" => "NO HALLADO",
                 _ => $"Condición desconocida ({condDomiRuc})"
             };
-        }
-
+        } 
         //{"success":true,"message":"Operation Success! ","data":{"estadoCp":"0"}}
 
 

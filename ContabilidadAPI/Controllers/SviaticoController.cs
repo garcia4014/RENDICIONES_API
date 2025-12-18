@@ -100,6 +100,42 @@ namespace ContabilidadAPI.Controllers
             }
         }
 
+        [HttpGet("{id}/con-comprobantes")]
+        [ProducesResponseType(typeof(ApiResponse<SviaticoConComprobantesDto>), 200)]
+        [ProducesResponseType(typeof(ApiResponse<string>), 404)]
+        [ProducesResponseType(typeof(ApiResponse<string>), 500)]
+        public async Task<IActionResult> GetViaticoConComprobantes(int id)
+        {
+            try
+            {
+                var response = await _SviaticoService.GetSviaticoCabecera(id);
+
+                if (response.Data == null)
+                    return NotFound(response);
+
+                // Agrupar comprobantes por detalle
+                var detallesConComprobantes = response.Data.Detalles.Select(detalle => new DetalleConComprobantesDto
+                {
+                    Detalle = detalle,
+                    Comprobantes = response.Data.ComprobantesPago
+                        .Where(c => c.SvIdDetalle == detalle.SvdId)
+                        .ToList()
+                }).ToList();
+
+                var resultado = new SviaticoConComprobantesDto
+                {
+                    Cabecera = response.Data,
+                    DetallesConComprobantes = detallesConComprobantes
+                };
+
+                return Ok(new ApiResponse<SviaticoConComprobantesDto>(resultado, "Viático con comprobantes obtenido correctamente"));
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new ApiResponse<string>("Error interno del servidor: " + ex.Message));
+            }
+        }
+
         [HttpPost]
         public async Task<IActionResult> Post(SviaticosCabeceraDTO request)
         {
@@ -142,9 +178,7 @@ namespace ContabilidadAPI.Controllers
 
         [HttpPut("update")]
         public async Task<IActionResult> UpdateCabecera(SviaticosCabeceraUpdateDTO request)
-        {
-
-
+        { 
             if (request == null)
                 return BadRequest("Id invalido o datos requeridos");
 
@@ -427,7 +461,7 @@ namespace ContabilidadAPI.Controllers
                     UsuarioReceptor = null,
                     CodUsuValidador = null,
                     UsuarioValidador = null,
-                    Mensaje = $"Solicitud #{cabecera.SvId} - el detalle ${detalle.SvdDescripcion} ha sido observado ",
+                    Mensaje = $"Solicitud #{cabecera.SvId} - el detalle {detalle.SvdDescripcion} ha sido observado ",
                     Leido = false,
                     EstadoFlujo = 8
                 };

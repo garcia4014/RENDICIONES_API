@@ -1,3 +1,4 @@
+using CapaDatos.ContabilidadAPI.Models;
 using CapaNegocio.ContabilidadAPI.Models;
 using CapaNegocio.ContabilidadAPI.Models.DTO;
 
@@ -40,5 +41,6 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Interfaces
         /// <param name="condDomiRuc">Código de condición domiciliaria</param>
         /// <returns>Descripción de la condición</returns>
         string ObtenerDescripcionCondicionDomiciliaria(string condDomiRuc);
+
     }
 }

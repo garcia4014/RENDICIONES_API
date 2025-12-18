@@ -1,3 +1,4 @@
+using CapaDatos.ContabilidadAPI.Models;
 using CapaNegocio.ContabilidadAPI.Models;
 using CapaNegocio.ContabilidadAPI.Models.DTO;
 
@@ -90,6 +91,32 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Interfaces
         /// <param name="fechaFin">Fecha de fin (opcional)</param>
         /// <returns>Respuesta con estadísticas del dashboard</returns>
         Task<ApiResponse<RendicionesDashboardDto>> GetRendicionesDashboardAsync(string[] estados,string svEmpDni, DateTime? fechaInicio = null, DateTime? fechaFin = null);
+
+        Task<ComprobantePago> GetById(int id);
+
+        /// <summary>
+        /// Actualiza el estado de observado de un comprobante
+        /// </summary>
+        /// <param name="comprobanteId">ID del comprobante</param>
+        /// <param name="observado">Estado observado</param>
+        /// <param name="comentario">Comentario de observación</param>
+        /// <returns>Respuesta con resultado de la actualización</returns>
+        Task<ApiResponse<bool>> ActualizarComprobanteObservado(int comprobanteId, bool observado, string? comentario);
+
+        /// <summary>
+        /// Actualiza el estado de aprobado de un comprobante
+        /// </summary>
+        /// <param name="comprobanteId">ID del comprobante</param>
+        /// <param name="aprobado">Estado aprobado</param>
+        /// <returns>Respuesta con resultado de la actualización</returns>
+        Task<ApiResponse<bool>> ActualizarComprobanteAprobado(int comprobanteId, bool aprobado);
+
+        /// <summary>
+        /// Valida un comprobante en SUNAT de manera asíncrona (usado por Hangfire)
+        /// </summary>
+        /// <param name="comprobanteId">ID del comprobante a validar</param>
+        /// <returns>Task completado cuando finaliza la validación</returns>
+        Task ValidarComprobanteEnSunatAsync(int comprobanteId);
     }
 
     /// <summary>

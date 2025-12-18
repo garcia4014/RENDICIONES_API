@@ -71,18 +71,48 @@ namespace CapaDatos.ContabilidadAPI.Models
 
         [Column("Leido")]
         public bool? Leido { get; set; } = false;
-        
+
         [Column("FechaLectura ")]
-        public DateTime? FechaLectura { get; set; } 
+        public DateTime? FechaLectura { get; set; }
 
+        [Column("SV_TG_ID")]
+        public int? SvTgId { get; set; }
 
+        //[Column("SV_TipoGasto")]
+        //public string? SvTipoGasto { get; set; }
+        public bool? Observado { get; set; } = false;
+        public bool? Aprobado { get; set; } = false;
+        public string? Observacion { get; set; } = string.Empty;
+
+        [Column("EXONERADO")]
+        public bool? Exonerado { get; set; } = false;
+        
+        [Column("INAFECTO")]
+        public bool? Inafecto { get; set; } = false;
+        
+        [Column("IGV")]
+        public decimal? Igv { get; set; } = 0m;
+        
+        [Column("SUBTOTAL")]
+        public decimal? Subtotal { get; set; } = 0m;
+
+        [Column("IGV_ESPECIAL")]
+        public bool? IgvEspecial { get; set; } = false;
+
+        [Column("IGVPorcentaje")]
+        public int? IgvPorcentaje { get; set; }
 
         [ForeignKey("SvIdCabecera")]
         [JsonIgnore]
         public virtual SviaticosCabecera? SviaticosCabecera { get; set; }
 
-        [ForeignKey("SvIdDetalle")]
+        [ForeignKey("SvTgId")]
         [JsonIgnore]
-        public virtual SviaticosDetalle? SviaticosDetalle { get; set; }
+        public virtual TipoGasto? TipoGasto { get; set; }
+
+        // Relación con SviaticosDetalle - COMENTADA: Ahora solo se relaciona con Cabecera
+        // [ForeignKey("SvIdDetalle")]
+        // [JsonIgnore]
+        // public virtual SviaticosDetalle? SviaticosDetalle { get; set; }
     }
 }

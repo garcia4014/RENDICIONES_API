@@ -6,6 +6,7 @@ using CapaNegocio.ContabilidadAPI.Repository.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel.DataAnnotations;
+using Hangfire;
 
 namespace ContabilidadAPI.Controllers
 {
@@ -22,21 +23,27 @@ namespace ContabilidadAPI.Controllers
         private readonly ISviatico _dao;
         private readonly IMapper _mapper;
         private readonly INotificacionesService _notificacionesService;
+        private readonly ISviaticoService _SviaticoService;
+        private readonly IComprobantePago _comprobanteService;
 
         public ComprobantePagoController(
+            ISviaticoService sviaticoService,
             INotificacionesService notificacionesService,
             IMapper mapper,
             ISviatico dao,
             IComprobantePagoService comprobantePagoService,
-            ILogger<ComprobantePagoController> logger)
+            ILogger<ComprobantePagoController> logger,
+            IComprobantePago comprobanteService)
         {
+            _comprobanteService = comprobanteService;
+            _SviaticoService = sviaticoService;
             _comprobantePagoService = comprobantePagoService;
             _logger = logger;
             _dao = dao;
             _mapper = mapper;
             _notificacionesService = notificacionesService;
         }
-         
+
         [HttpGet]
         [ProducesResponseType(typeof(ApiResponse<PagedResult<ComprobantePagoDto>>), 200)]
         [ProducesResponseType(typeof(ApiResponse<PagedResult<ComprobantePagoDto>>), 400)]
@@ -63,7 +70,7 @@ namespace ContabilidadAPI.Controllers
                 return StatusCode(500, new ApiResponse<PagedResult<ComprobantePagoDto>>(null, "Error interno del servidor"));
             }
         }
-         
+
         [HttpGet("{id}")]
         [ProducesResponseType(typeof(ApiResponse<ComprobantePagoDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse<ComprobantePagoDto>), 404)]
@@ -77,7 +84,7 @@ namespace ContabilidadAPI.Controllers
                 }
 
                 var resultado = await _comprobantePagoService.GetByIdAsync(id);
-                
+
                 if (resultado.Data == null)
                 {
                     return NotFound(resultado);
@@ -91,7 +98,7 @@ namespace ContabilidadAPI.Controllers
                 return StatusCode(500, new ApiResponse<ComprobantePagoDto>(null, "Error interno del servidor"));
             }
         }
-         
+
         [HttpPost("buscar")]
         [ProducesResponseType(typeof(ApiResponse<PagedResult<ComprobantePagoDto>>), 200)]
         [ProducesResponseType(typeof(ApiResponse<PagedResult<ComprobantePagoDto>>), 400)]
@@ -123,7 +130,7 @@ namespace ContabilidadAPI.Controllers
                 return StatusCode(500, new ApiResponse<PagedResult<ComprobantePagoDto>>(null, "Error interno del servidor"));
             }
         }
-         
+
         [HttpGet("cabecera/{cabeceraId}")]
         [ProducesResponseType(typeof(ApiResponse<List<ComprobantePagoDto>>), 200)]
         [ProducesResponseType(typeof(ApiResponse<List<ComprobantePagoDto>>), 400)]
@@ -145,7 +152,7 @@ namespace ContabilidadAPI.Controllers
                 return StatusCode(500, new ApiResponse<List<ComprobantePagoDto>>(null, "Error interno del servidor"));
             }
         }
-         
+
         [HttpGet("detalle/{detalleId}")]
         [ProducesResponseType(typeof(ApiResponse<List<ComprobantePagoDto>>), 200)]
         [ProducesResponseType(typeof(ApiResponse<List<ComprobantePagoDto>>), 400)]
@@ -167,7 +174,7 @@ namespace ContabilidadAPI.Controllers
                 return StatusCode(500, new ApiResponse<List<ComprobantePagoDto>>(null, "Error interno del servidor"));
             }
         }
-         
+
         [HttpPost]
         [ProducesResponseType(typeof(ApiResponse<ComprobantePagoDto>), 201)]
         [ProducesResponseType(typeof(ApiResponse<ComprobantePagoDto>), 400)]
@@ -186,12 +193,12 @@ namespace ContabilidadAPI.Controllers
                         .SelectMany(v => v.Errors)
                         .Select(e => e.ErrorMessage)
                         .ToList();
-                    
+
                     return BadRequest(new ApiResponse<ComprobantePagoDto>(null, $"Errores de validación: {string.Join(", ", errores)}"));
                 }
 
                 var resultado = await _comprobantePagoService.CreateAsync(createDto);
-                
+
                 if (resultado.Data == null)
                 {
                     return BadRequest(resultado);
@@ -205,12 +212,17 @@ namespace ContabilidadAPI.Controllers
                     UsuarioReceptor = null,
                     CodUsuValidador = null,
                     UsuarioValidador = null,
-                    Mensaje = $"Solicitud #{cabecera.SvId} - se cargo el comprobante ${createDto.Serie}-${createDto.Correlativo} en el detalle ${createDto.SvIdDetalle} ",
+                    Mensaje = $"Solicitud #{cabecera.SvId} - se cargó el comprobante {createDto.Serie}-{createDto.Correlativo}",
                     Leido = false,
                     EstadoFlujo = 7
                 };
                 var responseTMP = await _notificacionesService.CreateAsync(dto);
 
+                // Encolar validación SUNAT en background usando Hangfire
+                var jobId = BackgroundJob.Enqueue<IComprobantePagoService>(
+                    service => service.ValidarComprobanteEnSunatAsync(resultado.Data.Id));
+                _logger.LogInformation("Validación SUNAT encolada en Hangfire con Job ID: {JobId} para comprobante {ComprobanteId}", 
+                    jobId, resultado.Data.Id);
 
                 return CreatedAtAction(nameof(GetById), new { id = resultado.Data.Id }, resultado);
             }
@@ -220,7 +232,7 @@ namespace ContabilidadAPI.Controllers
                 return StatusCode(500, new ApiResponse<ComprobantePagoDto>(null, "Error interno del servidor"));
             }
         }
-         
+
         [HttpPut("{id}")]
         [ProducesResponseType(typeof(ApiResponse<ComprobantePagoDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse<ComprobantePagoDto>), 400)]
@@ -250,12 +262,12 @@ namespace ContabilidadAPI.Controllers
                         .SelectMany(v => v.Errors)
                         .Select(e => e.ErrorMessage)
                         .ToList();
-                    
+
                     return BadRequest(new ApiResponse<ComprobantePagoDto>(null, $"Errores de validación: {string.Join(", ", errores)}"));
                 }
 
                 var resultado = await _comprobantePagoService.UpdateAsync(updateDto);
-                
+
                 if (resultado.Data == null)
                 {
                     return NotFound(resultado);
@@ -269,7 +281,7 @@ namespace ContabilidadAPI.Controllers
                 return StatusCode(500, new ApiResponse<ComprobantePagoDto>(null, "Error interno del servidor"));
             }
         }
-         
+
         [HttpDelete("{id}")]
         [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
         [ProducesResponseType(typeof(ApiResponse<bool>), 400)]
@@ -284,7 +296,7 @@ namespace ContabilidadAPI.Controllers
                 }
 
                 var resultado = await _comprobantePagoService.DeleteAsync(id);
-                
+
                 if (!resultado.Data)
                 {
                     return NotFound(resultado);
@@ -297,7 +309,7 @@ namespace ContabilidadAPI.Controllers
                 _logger.LogError(ex, "Error al eliminar comprobante de pago ID: {Id}", id);
                 return StatusCode(500, new ApiResponse<bool>(false, "Error interno del servidor"));
             }
-        } 
+        }
 
         [HttpGet("estadisticas")]
         [ProducesResponseType(typeof(ApiResponse<ComprobantePagoEstadisticasDto>), 200)]
@@ -327,7 +339,7 @@ namespace ContabilidadAPI.Controllers
                 return StatusCode(500, new ApiResponse<ComprobantePagoEstadisticasDto>(null, "Error interno del servidor"));
             }
         }
-         
+
         [HttpGet("validar-duplicado")]
         [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
         [ProducesResponseType(typeof(ApiResponse<bool>), 400)]
@@ -350,7 +362,7 @@ namespace ContabilidadAPI.Controllers
 
                 var existeDuplicado = await _comprobantePagoService.ExisteDuplicadoAsync(serie, correlativo, idExcluir);
                 var mensaje = existeDuplicado ? "Existe un comprobante con la misma serie y correlativo" : "No existe duplicado";
-                
+
                 return Ok(new ApiResponse<bool>(existeDuplicado, mensaje));
             }
             catch (Exception ex)
@@ -359,16 +371,85 @@ namespace ContabilidadAPI.Controllers
                 return StatusCode(500, new ApiResponse<bool>(false, "Error interno del servidor"));
             }
         }
+
         [HttpGet("dashboard")]
         [AllowAnonymous]
         public async Task<IActionResult> GetRendicionesDashboard(
-            [FromQuery] string? svEmpDni = null, 
-            [FromQuery] DateTime? fechaInicio = null, 
+            [FromQuery] string? svEmpDni = null,
+            [FromQuery] DateTime? fechaInicio = null,
             [FromQuery] DateTime? fechaFin = null,
             [FromQuery] string[]? estados = null)
         {
-            var response = await _comprobantePagoService.GetRendicionesDashboardAsync(estados,svEmpDni, fechaInicio, fechaFin);
+            var response = await _comprobantePagoService.GetRendicionesDashboardAsync(estados, svEmpDni, fechaInicio, fechaFin);
             return Ok(response);
         }
+
+        /// <summary>
+        /// Marca un comprobante como observado
+        /// </summary>
+        /// <param name="id">ID del comprobante</param>
+        /// <param name="comentarios">Comentarios de observación</param>
+        /// <returns>Resultado de la operación</returns>
+        [HttpPut("comprobante/{id}/observado")]
+        [AllowAnonymous]
+        public async Task<IActionResult> MarcarComprobanteObservado(int id, [FromBody] string comentarios)
+        {
+            try
+            {
+                if (id <= 0)
+                {
+                    return BadRequest(new ApiResponse<bool>(false, "ID de comprobante inválido"));
+                }
+
+                var response = await _comprobantePagoService.ActualizarComprobanteObservado(id, true, comentarios);
+
+                if (response.Success)
+                {
+                    return Ok(response);
+                }
+                else
+                {
+                    return BadRequest(response);
+                }
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new ApiResponse<bool>(false, $"Error interno del servidor: {ex.Message}"));
+            }
+        }
+
+        /// <summary>
+        /// Marca un comprobante como aprobado
+        /// </summary>
+        /// <param name="id">ID del comprobante</param>
+        /// <returns>Resultado de la operación</returns>
+        [HttpPut("comprobante/{id}/aprobado")]
+        [AllowAnonymous]
+        public async Task<IActionResult> MarcarComprobanteAprobado(int id)
+        {
+            try
+            {
+                if (id <= 0)
+                {
+                    return BadRequest(new ApiResponse<bool>(false, "ID de comprobante inválido"));
+                }
+
+                var response = await _comprobantePagoService.ActualizarComprobanteAprobado(id, true);
+
+                if (response.Success)
+                {
+                    return Ok(response);
+                }
+                else
+                {
+                    return BadRequest(response);
+                }
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new ApiResponse<bool>(false, $"Error interno del servidor: {ex.Message}"));
+            }
+        }
+         
     }
 }
