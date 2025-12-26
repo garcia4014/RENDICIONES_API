@@ -13,11 +13,16 @@ namespace ContabilidadAPI.Controllers
     public class OcrController : ControllerBase
     {
         private readonly IOcrService _ocrService;
+        private readonly IAzureDocumentIntelligenceService _azureDocService;
         private readonly ILogger<OcrController> _logger;
 
-        public OcrController(IOcrService ocrService, ILogger<OcrController> logger)
+        public OcrController(
+            IOcrService ocrService,
+            IAzureDocumentIntelligenceService azureDocService,
+            ILogger<OcrController> logger)
         {
             _ocrService = ocrService;
+            _azureDocService = azureDocService;
             _logger = logger;
         }
 
@@ -272,7 +277,7 @@ namespace ContabilidadAPI.Controllers
 
                 if (!extension.ToLower().EndsWith("pdf") && !extension.ToLower().EndsWith("jpg") && 
                     !extension.ToLower().EndsWith("png") && !extension.ToLower().EndsWith("tiff") && 
-                    !extension.ToLower().EndsWith("xml"))
+                    !extension.ToLower().EndsWith("xml") && !extension.ToLower().EndsWith("jpeg") )
                 {
                     return BadRequest("Solo se permiten archivos PDF, imágenes (JPG, PNG, TIFF) o XML");
                 }
@@ -292,7 +297,38 @@ namespace ContabilidadAPI.Controllers
                 }
                 else
                 {
-                    // Procesar PDF o imagen con OCR
+                    // Verificar si Azure IA está habilitado
+                    if (_azureDocService.IsEnabled())
+                    {
+                        try
+                        {
+                            _logger.LogInformation("Procesando con Azure Document Intelligence: {FileName}", file.FileName);
+                            
+                            // Procesar con Azure IA
+                            var azureResult = await _azureDocService.AnalyzeDocumentFromBytesAsync(fileBytes);
+                            
+                            if (azureResult.Success && azureResult.Data != null)
+                            {
+                                _logger.LogInformation("Documento procesado exitosamente con Azure IA: {FileName}", file.FileName);
+                                
+                                // Convertir la respuesta de Azure al formato ComprobanteExtractorResult
+                                var extractorResult = _azureDocService.ConvertToComprobanteExtractorResult(azureResult.Data);
+                                return Ok(extractorResult);
+                            }
+                            else
+                            {
+                                _logger.LogWarning("Azure IA falló para {FileName}: {Message}. Usando fallback a Tesseract", 
+                                    file.FileName, azureResult.Message);
+                            }
+                        }
+                        catch (Exception azureEx)
+                        {
+                            _logger.LogError(azureEx, "Error con Azure IA para {FileName}. Usando fallback a Tesseract", file.FileName);
+                        }
+                    }
+
+                    // Flujo original con Tesseract (fallback o cuando Azure no está habilitado)
+                    _logger.LogInformation("Procesando con Tesseract OCR: {FileName}", file.FileName);
                     ApiResponse<OcrResponseDto> result;
                     if (extension.ToUpper().Contains("PDF"))
                     {
@@ -360,6 +396,168 @@ namespace ContabilidadAPI.Controllers
             {
                 _logger.LogError(ex, "Error procesando XML: {FileName}", file.FileName);
                 return StatusCode(500, "Error procesando el archivo XML");
+            }
+        }
+
+        /// <summary>
+        /// Analiza un documento usando Azure Document Intelligence desde una URL
+        /// </summary>
+        /// <param name="request">Solicitud con URL del documento y campos opcionales</param>
+        /// <returns>Respuesta con los campos extraídos por Azure IA</returns>
+        [HttpPost("azure-analyze-url")]
+        public async Task<IActionResult> AzureAnalyzeFromUrl([FromBody] AzureDocumentIntelligenceRequestDto request)
+        {
+            try
+            {
+                if (!_azureDocService.IsEnabled())
+                {
+                    return BadRequest(new ApiResponse<object>(
+                        "Azure Document Intelligence no está habilitado. Verifique la configuración en appsettings."));
+                }
+
+                if (string.IsNullOrWhiteSpace(request.UrlSource))
+                {
+                    return BadRequest(new ApiResponse<object>(
+                        "La URL del documento es requerida"));
+                }
+
+                _logger.LogInformation("Analizando documento desde URL: {Url}", request.UrlSource);
+
+                //var result = await _azureDocService.AnalyzeDocumentFromUrlAsync(
+                //    request.UrlSource,
+                //    request.QueryFields);
+                var result = await _azureDocService.AnalyzeDocumentFromUrlAsync(
+                request.UrlSource,
+                null);
+
+                if (result.Success)
+                {
+                    _logger.LogInformation("Documento analizado exitosamente desde URL: {Url}", request.UrlSource);
+                }
+                else
+                {
+                    _logger.LogWarning("Error al analizar documento desde URL {Url}: {Message}",
+                        request.UrlSource, result.Message);
+                }
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error inesperado analizando documento desde URL");
+                return StatusCode(500, new ApiResponse<object>(
+                    "Error interno del servidor al analizar el documento"));
+            }
+        }
+
+        /// <summary>
+        /// Analiza un documento usando Azure Document Intelligence desde un archivo
+        /// </summary>
+        /// <param name="file">Archivo del documento (PDF o imagen)</param>
+        /// <param name="queryFields">Campos personalizados a extraer (opcional, separados por coma)</param>
+        /// <returns>Respuesta con los campos extraídos por Azure IA</returns>
+        [HttpPost("azure-analyze-file")]
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> AzureAnalyzeFromFile(
+            IFormFile file,
+            string? queryFields = null)
+        {
+            try
+            {
+                if (!_azureDocService.IsEnabled())
+                {
+                    return BadRequest(new ApiResponse<object>(
+                        "Azure Document Intelligence no está habilitado. Verifique la configuración en appsettings."));
+                }
+
+                if (file == null || file.Length == 0)
+                {
+                    return BadRequest(new ApiResponse<object>(
+                        "No se ha proporcionado un archivo válido"));
+                }
+
+                _logger.LogInformation("Analizando archivo con Azure IA: {FileName}, Tamaño: {FileSize} bytes",
+                    file.FileName, file.Length);
+
+                // Convertir archivo a bytes
+                using var memoryStream = new MemoryStream();
+                await file.CopyToAsync(memoryStream);
+                var fileBytes = memoryStream.ToArray();
+
+                // Parsear queryFields si están presentes
+                List<string>? fieldsList = null;
+                if (!string.IsNullOrWhiteSpace(queryFields))
+                {
+                    fieldsList = queryFields.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                        .Select(f => f.Trim())
+                        .ToList();
+                }
+
+                var result = await _azureDocService.AnalyzeDocumentFromBytesAsync(fileBytes, fieldsList);
+
+                if (result.Success)
+                {
+                    _logger.LogInformation("Archivo analizado exitosamente con Azure IA: {FileName}", file.FileName);
+                }
+                else
+                {
+                    _logger.LogWarning("Error al analizar archivo {FileName}: {Message}",
+                        file.FileName, result.Message);
+                }
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error inesperado analizando archivo con Azure IA");
+                return StatusCode(500, new ApiResponse<object>(
+                    "Error interno del servidor al analizar el archivo"));
+            }
+        }
+
+        /// <summary>
+        /// Obtiene el estado de los servicios OCR (Tesseract y Azure IA)
+        /// </summary>
+        /// <returns>Estado de configuración de ambos servicios</returns>
+        [HttpGet("services-status")]
+        public async Task<IActionResult> GetServicesStatus()
+        {
+            try
+            {
+                var tesseractConfigured = await _ocrService.IsConfiguredAsync();
+                var azureEnabled = _azureDocService.IsEnabled();
+
+                var status = new
+                {
+                    Tesseract = new
+                    {
+                        IsConfigured = tesseractConfigured,
+                        Status = tesseractConfigured ? "OK" : "NOT_CONFIGURED",
+                        Message = tesseractConfigured
+                            ? "Tesseract OCR configurado correctamente"
+                            : "Tesseract OCR no configurado"
+                    },
+                    AzureDocumentIntelligence = new
+                    {
+                        IsEnabled = azureEnabled,
+                        Status = azureEnabled ? "ENABLED" : "DISABLED",
+                        Message = azureEnabled
+                            ? "Azure Document Intelligence está habilitado y configurado"
+                            : "Azure Document Intelligence no está habilitado"
+                    },
+                    PreferredService = azureEnabled ? "Azure Document Intelligence" : "Tesseract OCR",
+                    SupportedFormats = new[] { "PDF", "JPG", "JPEG", "PNG", "BMP", "TIFF" }
+                };
+
+                return Ok(new ApiResponse<object>(
+                    status,
+                    "Estado de servicios OCR obtenido exitosamente"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error verificando estado de servicios OCR");
+                return StatusCode(500, new ApiResponse<object>(
+                    "Error verificando estado de servicios"));
             }
         }
 

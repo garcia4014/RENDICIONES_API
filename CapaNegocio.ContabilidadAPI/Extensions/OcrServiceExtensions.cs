@@ -41,8 +41,12 @@ namespace CapaNegocio.ContabilidadAPI.Extensions
                 });
             }
 
-            // Registrar servicio OCR como Singleton debido a la inicialización de Tesseract
-            services.AddSingleton<IOcrService, TesseractOcrService>();
+            // Registrar Tesseract OCR Service como Singleton
+            services.AddSingleton<TesseractOcrService>();
+
+            // Registrar el servicio híbrido como IOcrService
+            // Nota: Este servicio usa Azure IA si está habilitado, o Tesseract como fallback
+            services.AddScoped<IOcrService, HybridOcrService>();
 
             return services;
         }

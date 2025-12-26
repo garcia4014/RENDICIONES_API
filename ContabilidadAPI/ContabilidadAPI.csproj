@@ -4,6 +4,7 @@
 		<TargetFramework>net8.0</TargetFramework>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
+		<UserSecretsId>rendiciones-api-secrets-2025</UserSecretsId>
 
 		<!-- Evita que las vistas .cshtml se compilen en un DLL -->
 		
@@ -33,6 +34,12 @@
 	<ItemGroup>
 		<ProjectReference Include="..\CapaDatos.ContabilidadAPI\CapaDatos.ContabilidadAPI.csproj" />
 		<ProjectReference Include="..\CapaNegocio.ContabilidadAPI\CapaNegocio.ContabilidadAPI.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <None Update="tessdata\spa.traineddata">
+	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+	  </None>
 	</ItemGroup>
 
 </Project>

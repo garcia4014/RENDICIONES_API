@@ -398,3 +398,9 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+# Environment variables and secrets
+.env
+.env.local
+.env.*.local
+appsettings.Local.json

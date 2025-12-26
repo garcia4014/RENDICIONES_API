@@ -286,6 +286,9 @@ builder.Services.AddOcrServices();
 // SUNAT Services  
 builder.Services.AddSunatServices();
 
+// Azure Document Intelligence Services
+builder.Services.AddAzureDocumentIntelligenceServices(builder.Configuration);
+
 
 var app = builder.Build();
 
