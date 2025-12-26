@@ -31,22 +31,51 @@ Si otro desarrollador clona el repositorio, debe configurar sus propias claves:
 
 ```bash
 cd ContabilidadAPI
-dotnet user-secrets set "AzureDocumentIntelligence:Endpoint" "https://pruebaiadoc.cognitiveservices.azure.com"
-dotnet user-secrets set "AzureDocumentIntelligence:SubscriptionKey" "LA_CLAVE_REAL_AQUI"
+dotnet user-secrets set "AzureDocumentIntelligence:Endpoint" "https://your-resource-name.cognitiveservices.azure.com"
+dotnet user-secrets set "AzureDocumentIntelligence:SubscriptionKey" "YOUR_AZURE_KEY_HERE"
 ```
 
 ## Configuración en Producción (IIS/Azure)
 
-### Opción 1: Variables de Entorno del Sistema (Recomendado para IIS)
+### Opción 1: Variables de Entorno en web.config (Recomendado para IIS)
 
-En el servidor de producción, configura las variables de entorno:
+La forma más confiable en IIS es configurar las variables directamente en el `web.config`:
+
+1. Abre `C:\inetpub\wwwroot\API_CONTABILIDAD\web.config`
+2. Dentro de la sección `<aspNetCore>`, agrega las variables de entorno:
+
+```xml
+<aspNetCore processPath="dotnet" arguments=".\ContabilidadAPI.dll" stdoutLogEnabled="false" stdoutLogFile=".\logs\stdout" hostingModel="inprocess">
+  <environmentVariables>
+    <environmentVariable name="AzureDocumentIntelligence__Endpoint" value="https://pruebaiadoc.cognitiveservices.azure.com" />
+    <environmentVariable name="AzureDocumentIntelligence__SubscriptionKey" value="TU_CLAVE_AQUI" />
+  </environmentVariables>
+</aspNetCore>
+```
+
+3. Guarda el archivo
+4. **NO NECESITAS reiniciar IIS**, el cambio se aplica automáticamente
+
+Nota: Usa doble guion bajo `__` para separar secciones en las variables de entorno.
+
+### Opción 2: Variables de Entorno del Sistema (Requiere reinicio)
+
+Si prefieres usar variables del sistema:
 
 1. Panel de Control → Sistema → Configuración avanzada del sistema → Variables de entorno
 2. Agrega las siguientes variables del sistema:
    - `AzureDocumentIntelligence__Endpoint` = `https://pruebaiadoc.cognitiveservices.azure.com`
-   - `AzureDocumentIntelligence__SubscriptionKey` = `tu_clave_real`
+   - `AzureDocumentIntelligence__SubscriptionKey` = `TU_CLAVE_AQUI`
 
-Nota: Usa doble guion bajo `__` para separar secciones en las variables de entorno.
+3. **IMPORTANTE**: Después de agregar las variables, debes:
+   - Abrir IIS Manager
+   - Ir a Application Pools
+   - Seleccionar tu Application Pool (ej: API_CONTABILIDAD)
+   - Click derecho → Recycle
+   - O ejecutar en cmd como administrador:
+     ```cmd
+     %windir%\system32\inetsrv\appcmd recycle apppool /apppool.name:"API_CONTABILIDAD"
+     ```
 
 ### Opción 2: Azure Key Vault (Recomendado para Azure App Service)
 
