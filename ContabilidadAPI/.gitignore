@@ -404,3 +404,9 @@ FodyWeavers.xsd
 .env.local
 .env.*.local
 appsettings.Local.json
+
+
+# Visual Studio
+.vs/
+*.user
+*.suo
