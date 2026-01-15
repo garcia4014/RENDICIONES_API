@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  INSTRUCCIONES PARA PRODUCCIÓN (IIS)
+  
+  1. En el servidor, copia este contenido al archivo web.config
+  2. Reemplaza los placeholders con tus valores reales:
+     - YOUR_AZURE_ENDPOINT: https://pruebaiadoc.cognitiveservices.azure.com
+     - YOUR_AZURE_KEY: tu clave real de Azure Document Intelligence
+  
+  3. NO commitees web.config con claves reales a Git
+  4. Los cambios en web.config se aplican automáticamente, no necesitas reiniciar IIS
+-->
+<configuration>
+  <location path="." inheritInChildApplications="false">
+    <system.webServer>
+      <handlers>
+        <add name="aspNetCore" path="*" verb="*" modules="AspNetCoreModuleV2" resourceType="Unspecified" />
+      </handlers>
+      <aspNetCore processPath="dotnet" arguments=".\ContabilidadAPI.dll" stdoutLogEnabled="true" stdoutLogFile=".\logs\stdout" hostingModel="inprocess">
+        <environmentVariables>
+          <environmentVariable name="ASPNETCORE_ENVIRONMENT" value="Production" />
+          
+          <!-- Azure Document Intelligence - REEMPLAZA CON TUS VALORES REALES -->
+          <environmentVariable name="AzureDocumentIntelligence__Endpoint" value="YOUR_AZURE_ENDPOINT" />
+          <environmentVariable name="AzureDocumentIntelligence__SubscriptionKey" value="YOUR_AZURE_KEY" />
+        </environmentVariables>
+      </aspNetCore>
+    </system.webServer>
+  </location>
+</configuration>

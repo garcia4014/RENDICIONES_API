@@ -1,0 +1,9 @@
+c:\movitec\RENDICIONES_API\ContabilidadAPI.Tests\bin\Debug\net10.0\.msCoverageSourceRootsMapping_ContabilidadAPI.Tests
+c:\movitec\RENDICIONES_API\ContabilidadAPI.Tests\bin\Debug\net10.0\CoverletSourceRootsMapping_ContabilidadAPI.Tests
+c:\movitec\RENDICIONES_API\ContabilidadAPI.Tests\obj\Debug\net10.0\ContabilidadAPI.Tests.csproj.AssemblyReference.cache
+c:\movitec\RENDICIONES_API\ContabilidadAPI.Tests\obj\Debug\net10.0\MvcTestingAppManifest.json
+c:\movitec\RENDICIONES_API\ContabilidadAPI.Tests\obj\Debug\net10.0\ContabilidadAPI.Tests.GeneratedMSBuildEditorConfig.editorconfig
+c:\movitec\RENDICIONES_API\ContabilidadAPI.Tests\obj\Debug\net10.0\ContabilidadAPI.Tests.AssemblyInfoInputs.cache
+c:\movitec\RENDICIONES_API\ContabilidadAPI.Tests\obj\Debug\net10.0\ContabilidadAPI.Tests.AssemblyInfo.cs
+c:\movitec\RENDICIONES_API\ContabilidadAPI.Tests\obj\Debug\net10.0\ContabilidadAPI.Tests.csproj.CoreCompileInputs.cache
+c:\movitec\RENDICIONES_API\ContabilidadAPI.Tests\obj\Debug\net10.0\ContabilidadAPI.Tests.sourcelink.json
