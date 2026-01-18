@@ -135,7 +135,7 @@ gh variable set AZURE_DOC_INTELLIGENCE_ENABLED --repo $REPO --body "true"
 if ($LASTEXITCODE -eq 0) { Write-Host "    ✓ Creado" -ForegroundColor Green } else { Write-Host "    ✗ Error" -ForegroundColor Red }
 
 Write-Host "  → AZURE_DOC_INTELLIGENCE_ENDPOINT" -ForegroundColor Gray
-gh variable set AZURE_DOC_INTELLIGENCE_ENDPOINT --repo $REPO --body "https://pruebaiadoc.cognitiveservices.azure.com/"
+gh variable set AZURE_DOC_INTELLIGENCE_ENDPOINT --repo $REPO --body "https://pruebaiadoc.cognitiveservices.azure.com"
 if ($LASTEXITCODE -eq 0) { Write-Host "    ✓ Creado" -ForegroundColor Green } else { Write-Host "    ✗ Error" -ForegroundColor Red }
 
 Write-Host "  → AZURE_DOC_INTELLIGENCE_KEY" -ForegroundColor Gray

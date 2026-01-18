@@ -12,7 +12,7 @@
 ```json
 "AzureDocumentIntelligence": {
   "Enabled": true,
-  "Endpoint": "https://pruebaiadoc.cognitiveservices.azure.com/",
+  "Endpoint": "https://pruebaiadoc.cognitiveservices.azure.com",
   "SubscriptionKey": "YOUR_AZURE_DOCUMENT_INTELLIGENCE_KEY_HERE",
   "ApiVersion": "2023-07-31",
   "ModelId": "prebuilt-invoice",

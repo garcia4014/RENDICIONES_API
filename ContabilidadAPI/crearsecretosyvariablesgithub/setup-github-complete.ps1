@@ -186,7 +186,7 @@ Write-Host "» Azure Document Intelligence" -ForegroundColor Cyan
 # IMPORTANTE: Reemplaza YOUR_AZURE_KEY con tu clave real de Azure Document Intelligence
 $variables = @(
     @{Name="AZURE_DOC_INTELLIGENCE_ENABLED"; Value="true"},
-    @{Name="AZURE_DOC_INTELLIGENCE_ENDPOINT"; Value="https://pruebaiadoc.cognitiveservices.azure.com/"},
+    @{Name="AZURE_DOC_INTELLIGENCE_ENDPOINT"; Value="https://pruebaiadoc.cognitiveservices.azure.com"},
     @{Name="AZURE_DOC_INTELLIGENCE_KEY"; Value="YOUR_AZURE_KEY"},
     @{Name="AZURE_DOC_INTELLIGENCE_API_VERSION"; Value="2023-07-31"},
     @{Name="AZURE_DOC_INTELLIGENCE_MODEL_ID"; Value="prebuilt-invoice"},

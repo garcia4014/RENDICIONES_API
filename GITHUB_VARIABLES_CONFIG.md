@@ -101,7 +101,7 @@ AZURE_DOC_INTELLIGENCE_ENABLED
 Value: true
 
 AZURE_DOC_INTELLIGENCE_ENDPOINT
-Value: https://pruebaiadoc.cognitiveservices.azure.com/
+Value: https://pruebaiadoc.cognitiveservices.azure.com
 
 AZURE_DOC_INTELLIGENCE_KEY
 Value: YOUR_AZURE_DOCUMENT_INTELLIGENCE_KEY_HERE
