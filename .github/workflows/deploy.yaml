@@ -113,20 +113,20 @@ jobs:
         shell: powershell
         run: |
           Write-Host "Restoring NuGet packages..." -ForegroundColor Yellow
-          dotnet restore
+          dotnet restore ContabilidadAPI/ContabilidadAPI.sln
       
       - name: Build solution
         shell: powershell
         run: |
           Write-Host "Building solution in Release mode..." -ForegroundColor Yellow
-          dotnet build --configuration Release --no-restore
+          dotnet build ContabilidadAPI/ContabilidadAPI.sln --configuration Release --no-restore
       
       - name: Run tests (if any)
         shell: powershell
         continue-on-error: true
         run: |
           Write-Host "Running tests..." -ForegroundColor Yellow
-          dotnet test --configuration Release --no-build --verbosity normal
+          dotnet test ContabilidadAPI/ContabilidadAPI.sln --configuration Release --no-build --verbosity normal
       
       - name: Publish application
         shell: powershell
