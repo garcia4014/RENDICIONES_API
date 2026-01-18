@@ -1,0 +1,385 @@
+name: Deploy ContabilidadAPI to IIS Production
+
+on:
+  push:
+    branches: 
+      - main
+      - master
+  workflow_dispatch: # Permite ejecución manual
+
+jobs:
+  deploy:
+    name: Build and Deploy to IIS
+    runs-on: [self-hosted, Windows, X64]
+    
+    env:
+      SITE_NAME: API_CONTABILIDAD
+      SITE_PATH: C:\inetpub\wwwroot\API_CONTABILIDAD
+      BACKUP_PATH: C:\inetpub\backups
+      PROJECT_PATH: ContabilidadAPI/ContabilidadAPI.csproj
+      PUBLISH_PATH: .\publish
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Setup .NET 8.0
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      
+      - name: Display environment info
+        shell: powershell
+        run: |
+          Write-Host "=== Environment Information ===" -ForegroundColor Cyan
+          Write-Host "Runner: $env:COMPUTERNAME"
+          Write-Host "User: $env:USERNAME"
+          Write-Host "Date: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+          Write-Host "Branch: ${{ github.ref_name }}"
+          Write-Host "Commit: ${{ github.sha }}"
+          Write-Host "Commit Message: ${{ github.event.head_commit.message }}"
+          Write-Host "==============================" -ForegroundColor Cyan
+      
+      - name: Update appsettings.Production.json with variables
+        shell: powershell
+        run: |
+          Write-Host "Updating appsettings.Production.json with GitHub Variables..." -ForegroundColor Yellow
+          
+          $appSettingsPath = "ContabilidadAPI/appsettings.Production.json"
+          
+          if (-Not (Test-Path $appSettingsPath)) {
+              Write-Error "appsettings.Production.json not found!"
+              exit 1
+          }
+          
+          $appSettings = Get-Content $appSettingsPath -Raw | ConvertFrom-Json
+          
+          # Connection Strings - Using VARIABLES
+          $appSettings.ConnectionStrings.BDSVRENDICIONES = "${{ vars.CONN_BDSVRENDICIONES }}"
+          $appSettings.ConnectionStrings.BDMARCACIONES = "${{ vars.CONN_BDMARCACIONES }}"
+          $appSettings.ConnectionStrings.BDGNRLMOVITECNICA = "${{ vars.CONN_BDGNRLMOVITECNICA }}"
+          
+          # JWT Configuration - Using VARIABLES
+          $appSettings.JwtSecurityToken.key = "${{ vars.JWT_KEY }}"
+          $appSettings.JwtSecurityToken.issuer = "${{ vars.JWT_ISSUER }}"
+          $appSettings.JwtSecurityToken.audience = "${{ vars.JWT_AUDIENCE }}"
+          
+          # AllowedHosts - Using VARIABLES
+          $appSettings.AllowedHosts = "${{ vars.ALLOWED_HOSTS }}"
+          
+          # SUNAT Configuration - Using VARIABLES
+          $appSettings.SunatConfiguration.ClientId = "${{ vars.SUNAT_CLIENT_ID }}"
+          $appSettings.SunatConfiguration.ClientSecret = "${{ vars.SUNAT_CLIENT_SECRET }}"
+          $appSettings.SunatConfiguration.TokenUrl = "${{ vars.SUNAT_TOKEN_URL }}"
+          $appSettings.SunatConfiguration.ComprobanteUrl = "${{ vars.SUNAT_COMPROBANTE_URL }}"
+          $appSettings.SunatConfiguration.RUC = "${{ vars.SUNAT_RUC }}"
+          
+          # OCR Configuration - Using VARIABLES
+          $appSettings.OcrConfiguration.TesseractDataPath = "${{ vars.OCR_TESSERACT_DATA_PATH }}"
+          $appSettings.OcrConfiguration.DefaultLanguage = "${{ vars.OCR_DEFAULT_LANGUAGE }}"
+          $appSettings.OcrConfiguration.DefaultPageSegMode = [int]"${{ vars.OCR_PAGE_SEG_MODE }}"
+          $appSettings.OcrConfiguration.EnableImagePreprocessing = [System.Convert]::ToBoolean("${{ vars.OCR_ENABLE_PREPROCESSING }}")
+          $appSettings.OcrConfiguration.MaxFileSizeMB = [int]"${{ vars.OCR_MAX_FILE_SIZE_MB }}"
+          $appSettings.OcrConfiguration.MaxPagesPerPdf = [int]"${{ vars.OCR_MAX_PAGES_PER_PDF }}"
+          $appSettings.OcrConfiguration.DpiForPdfConversion = [int]"${{ vars.OCR_DPI_CONVERSION }}"
+          $appSettings.OcrConfiguration.SaveProcessedImages = [System.Convert]::ToBoolean("${{ vars.OCR_SAVE_PROCESSED_IMAGES }}")
+          $appSettings.OcrConfiguration.ProcessedImagesPath = "${{ vars.OCR_PROCESSED_IMAGES_PATH }}"
+          $appSettings.OcrConfiguration.TimeoutSeconds = [int]"${{ vars.OCR_TIMEOUT_SECONDS }}"
+          
+          # Azure Document Intelligence - Using VARIABLES
+          $appSettings.AzureDocumentIntelligence.Enabled = [System.Convert]::ToBoolean("${{ vars.AZURE_DOC_INTELLIGENCE_ENABLED }}")
+          $appSettings.AzureDocumentIntelligence.Endpoint = "${{ vars.AZURE_DOC_INTELLIGENCE_ENDPOINT }}"
+          $appSettings.AzureDocumentIntelligence.SubscriptionKey = "${{ vars.AZURE_DOC_INTELLIGENCE_KEY }}"
+          $appSettings.AzureDocumentIntelligence.ApiVersion = "${{ vars.AZURE_DOC_INTELLIGENCE_API_VERSION }}"
+          $appSettings.AzureDocumentIntelligence.ModelId = "${{ vars.AZURE_DOC_INTELLIGENCE_MODEL_ID }}"
+          $appSettings.AzureDocumentIntelligence.TimeoutSeconds = [int]"${{ vars.AZURE_DOC_INTELLIGENCE_TIMEOUT_SECONDS }}"
+          $appSettings.AzureDocumentIntelligence.PollingIntervalMs = [int]"${{ vars.AZURE_DOC_INTELLIGENCE_POLLING_INTERVAL_MS }}"
+          $appSettings.AzureDocumentIntelligence.MaxPollingAttempts = [int]"${{ vars.AZURE_DOC_INTELLIGENCE_MAX_POLLING_ATTEMPTS }}"
+          
+          # Save changes
+          $appSettings | ConvertTo-Json -Depth 10 | Set-Content $appSettingsPath -Encoding UTF8
+          
+          Write-Host "appsettings.Production.json updated successfully!" -ForegroundColor Green
+          Write-Host "  - Connection Strings: 3 updated" -ForegroundColor Cyan
+          Write-Host "  - JWT Settings: 3 updated" -ForegroundColor Cyan
+          Write-Host "  - SUNAT Configuration: 5 updated" -ForegroundColor Cyan
+          Write-Host "  - OCR Configuration: 10 updated" -ForegroundColor Cyan
+          Write-Host "  - Azure Document Intelligence: 7 updated" -ForegroundColor Cyan
+          Write-Host "  - Total: 29 configuration values applied from GitHub Variables" -ForegroundColor Cyan
+      
+      - name: Restore dependencies
+        shell: powershell
+        run: |
+          Write-Host "Restoring NuGet packages..." -ForegroundColor Yellow
+          dotnet restore
+      
+      - name: Build solution
+        shell: powershell
+        run: |
+          Write-Host "Building solution in Release mode..." -ForegroundColor Yellow
+          dotnet build --configuration Release --no-restore
+      
+      - name: Run tests (if any)
+        shell: powershell
+        continue-on-error: true
+        run: |
+          Write-Host "Running tests..." -ForegroundColor Yellow
+          dotnet test --configuration Release --no-build --verbosity normal
+      
+      - name: Publish application
+        shell: powershell
+        run: |
+          Write-Host "Publishing application..." -ForegroundColor Yellow
+          dotnet publish $env:PROJECT_PATH -c Release -o $env:PUBLISH_PATH --no-build
+          
+          Write-Host "Published files:" -ForegroundColor Green
+          Get-ChildItem $env:PUBLISH_PATH -Recurse -File | Select-Object FullName, Length
+      
+      - name: Verify IIS site exists
+        shell: powershell
+        run: |
+          Write-Host "Verifying IIS site '$env:SITE_NAME'..." -ForegroundColor Yellow
+          
+          Import-Module WebAdministration
+          
+          $site = Get-Website -Name $env:SITE_NAME -ErrorAction SilentlyContinue
+          
+          if ($null -eq $site) {
+              Write-Error "IIS Site '$env:SITE_NAME' does not exist!"
+              Write-Host "Please create the site manually with the correct bindings." -ForegroundColor Red
+              exit 1
+          }
+          
+          Write-Host "Site found: $($site.Name)" -ForegroundColor Green
+          Write-Host "Physical Path: $($site.PhysicalPath)" -ForegroundColor Green
+          Write-Host "State: $($site.State)" -ForegroundColor Green
+          Write-Host "Application Pool: $($site.ApplicationPool)" -ForegroundColor Green
+          
+          # Verify bindings
+          Write-Host "`nSite Bindings:" -ForegroundColor Cyan
+          Get-WebBinding -Name $env:SITE_NAME | ForEach-Object {
+              Write-Host "  - $($_.protocol)://$($_.bindingInformation)" -ForegroundColor Gray
+          }
+      
+      - name: Stop Application Pool
+        shell: powershell
+        run: |
+          Write-Host "Stopping Application Pool..." -ForegroundColor Yellow
+          
+          Import-Module WebAdministration
+          
+          $site = Get-Website -Name $env:SITE_NAME
+          $appPoolName = $site.ApplicationPool
+          
+          Write-Host "Application Pool: $appPoolName" -ForegroundColor Cyan
+          
+          $appPool = Get-WebAppPoolState -Name $appPoolName
+          
+          if ($appPool.Value -eq "Started") {
+              Stop-WebAppPool -Name $appPoolName
+              
+              # Wait for pool to stop (max 30 seconds)
+              $timeout = 30
+              $elapsed = 0
+              
+              while ((Get-WebAppPoolState -Name $appPoolName).Value -ne "Stopped" -and $elapsed -lt $timeout) {
+                  Start-Sleep -Seconds 1
+                  $elapsed++
+                  Write-Host "Waiting for Application Pool to stop... ($elapsed/$timeout)" -ForegroundColor Gray
+              }
+              
+              if ((Get-WebAppPoolState -Name $appPoolName).Value -eq "Stopped") {
+                  Write-Host "Application Pool stopped successfully!" -ForegroundColor Green
+              } else {
+                  Write-Warning "Application Pool did not stop within timeout, forcing stop..."
+                  Stop-WebAppPool -Name $appPoolName -Force
+              }
+          } else {
+              Write-Host "Application Pool is already stopped." -ForegroundColor Green
+          }
+      
+      - name: Create backup
+        shell: powershell
+        run: |
+          Write-Host "Creating backup..." -ForegroundColor Yellow
+          
+          $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+          $backupFolder = "$env:BACKUP_PATH\API_CONTABILIDAD_$timestamp"
+          
+          # Create backup directory if not exists
+          if (-Not (Test-Path $env:BACKUP_PATH)) {
+              New-Item -ItemType Directory -Path $env:BACKUP_PATH -Force | Out-Null
+              Write-Host "Created backup directory: $env:BACKUP_PATH" -ForegroundColor Green
+          }
+          
+          if (Test-Path $env:SITE_PATH) {
+              Write-Host "Backing up current deployment to: $backupFolder" -ForegroundColor Cyan
+              
+              # Copy current deployment to backup
+              Copy-Item -Path $env:SITE_PATH -Destination $backupFolder -Recurse -Force
+              
+              $backupSize = (Get-ChildItem $backupFolder -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB
+              Write-Host "Backup created successfully! Size: $([math]::Round($backupSize, 2)) MB" -ForegroundColor Green
+              
+              # Keep only last 10 backups
+              Write-Host "Cleaning old backups (keeping last 10)..." -ForegroundColor Yellow
+              Get-ChildItem $env:BACKUP_PATH -Directory | 
+                  Sort-Object CreationTime -Descending | 
+                  Select-Object -Skip 10 | 
+                  Remove-Item -Recurse -Force
+              
+              Write-Host "Backup cleanup completed." -ForegroundColor Green
+          } else {
+              Write-Host "Site path does not exist yet. Skipping backup." -ForegroundColor Yellow
+          }
+      
+      - name: Deploy to IIS
+        shell: powershell
+        run: |
+          Write-Host "Deploying application to IIS..." -ForegroundColor Yellow
+          
+          # Ensure site directory exists
+          if (-Not (Test-Path $env:SITE_PATH)) {
+              New-Item -ItemType Directory -Path $env:SITE_PATH -Force | Out-Null
+              Write-Host "Created site directory: $env:SITE_PATH" -ForegroundColor Green
+          }
+          
+          # Remove old files (except special folders/files)
+          Write-Host "Cleaning site directory..." -ForegroundColor Cyan
+          
+          $excludeFolders = @("Logs", "keys", "App_Data", "tessdata", "processed-images")
+          
+          Get-ChildItem $env:SITE_PATH | Where-Object {
+              $_.Name -notin $excludeFolders
+          } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+          
+          # Copy new files
+          Write-Host "Copying new files..." -ForegroundColor Cyan
+          Copy-Item -Path "$env:PUBLISH_PATH\*" -Destination $env:SITE_PATH -Recurse -Force
+          
+          # Ensure required directories exist
+          $logsPath = Join-Path $env:SITE_PATH "Logs"
+          $keysPath = Join-Path $env:SITE_PATH "keys"
+          $tessdataPath = Join-Path $env:SITE_PATH "tessdata"
+          $processedImagesPath = Join-Path $env:SITE_PATH "processed-images"
+          
+          if (-Not (Test-Path $logsPath)) {
+              New-Item -ItemType Directory -Path $logsPath -Force | Out-Null
+              Write-Host "Created Logs directory" -ForegroundColor Green
+          }
+          
+          if (-Not (Test-Path $keysPath)) {
+              New-Item -ItemType Directory -Path $keysPath -Force | Out-Null
+              Write-Host "Created keys directory" -ForegroundColor Green
+          }
+          
+          if (-Not (Test-Path $tessdataPath)) {
+              New-Item -ItemType Directory -Path $tessdataPath -Force | Out-Null
+              Write-Host "Created tessdata directory" -ForegroundColor Green
+          }
+          
+          if (-Not (Test-Path $processedImagesPath)) {
+              New-Item -ItemType Directory -Path $processedImagesPath -Force | Out-Null
+              Write-Host "Created processed-images directory" -ForegroundColor Green
+          }
+          
+          Write-Host "Deployment completed successfully!" -ForegroundColor Green
+          
+          # Show deployed files summary
+          $deployedFiles = Get-ChildItem $env:SITE_PATH -File -Recurse
+          $totalSize = ($deployedFiles | Measure-Object -Property Length -Sum).Sum / 1MB
+          Write-Host "Total files deployed: $($deployedFiles.Count)" -ForegroundColor Cyan
+          Write-Host "Total size: $([math]::Round($totalSize, 2)) MB" -ForegroundColor Cyan
+      
+      - name: Start Application Pool
+        shell: powershell
+        run: |
+          Write-Host "Starting Application Pool..." -ForegroundColor Yellow
+          
+          Import-Module WebAdministration
+          
+          $site = Get-Website -Name $env:SITE_NAME
+          $appPoolName = $site.ApplicationPool
+          
+          $appPool = Get-WebAppPoolState -Name $appPoolName
+          
+          if ($appPool.Value -ne "Started") {
+              Start-WebAppPool -Name $appPoolName
+              
+              # Wait for pool to start (max 30 seconds)
+              $timeout = 30
+              $elapsed = 0
+              
+              while ((Get-WebAppPoolState -Name $appPoolName).Value -ne "Started" -and $elapsed -lt $timeout) {
+                  Start-Sleep -Seconds 1
+                  $elapsed++
+                  Write-Host "Waiting for Application Pool to start... ($elapsed/$timeout)" -ForegroundColor Gray
+              }
+              
+              if ((Get-WebAppPoolState -Name $appPoolName).Value -eq "Started") {
+                  Write-Host "Application Pool started successfully!" -ForegroundColor Green
+              } else {
+                  Write-Error "Application Pool failed to start within timeout!"
+                  exit 1
+              }
+          } else {
+              Write-Host "Application Pool is already running." -ForegroundColor Green
+          }
+      
+      - name: Verify deployment
+        shell: powershell
+        run: |
+          Write-Host "Verifying deployment..." -ForegroundColor Yellow
+          
+          Import-Module WebAdministration
+          
+          $site = Get-Website -Name $env:SITE_NAME
+          $appPoolName = $site.ApplicationPool
+          
+          # Check site state
+          $siteState = (Get-Website -Name $env:SITE_NAME).State
+          Write-Host "Site State: $siteState" -ForegroundColor $(if ($siteState -eq "Started") { "Green" } else { "Red" })
+          
+          # Check app pool state
+          $poolState = (Get-WebAppPoolState -Name $appPoolName).Value
+          Write-Host "App Pool State: $poolState" -ForegroundColor $(if ($poolState -eq "Started") { "Green" } else { "Red" })
+          
+          # Check if web.config exists
+          $webConfigPath = Join-Path $env:SITE_PATH "web.config"
+          if (Test-Path $webConfigPath) {
+              Write-Host "web.config: Found" -ForegroundColor Green
+          } else {
+              Write-Warning "web.config: Not found"
+          }
+          
+          # Check if DLL exists
+          $dllPath = Join-Path $env:SITE_PATH "ContabilidadAPI.dll"
+          if (Test-Path $dllPath) {
+              Write-Host "ContabilidadAPI.dll: Found" -ForegroundColor Green
+          } else {
+              Write-Error "ContabilidadAPI.dll: Not found!"
+              exit 1
+          }
+          
+          Write-Host "`n=== Deployment Summary ===" -ForegroundColor Cyan
+          Write-Host "Site: $env:SITE_NAME" -ForegroundColor White
+          Write-Host "Path: $env:SITE_PATH" -ForegroundColor White
+          Write-Host "Status: DEPLOYED SUCCESSFULLY" -ForegroundColor Green
+          Write-Host "Timestamp: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor White
+          Write-Host "Commit: ${{ github.sha }}" -ForegroundColor White
+          Write-Host "=========================" -ForegroundColor Cyan
+      
+      - name: Deployment notification
+        if: always()
+        shell: powershell
+        run: |
+          $status = if ('${{ job.status }}' -eq 'success') { 'SUCCESS' } else { 'FAILED' }
+          $color = if ('${{ job.status }}' -eq 'success') { 'Green' } else { 'Red' }
+          Write-Host "`n=== Deployment Status ===" -ForegroundColor Cyan
+          Write-Host "Status: $status" -ForegroundColor $color
+          Write-Host "Branch: ${{ github.ref_name }}" -ForegroundColor White
+          Write-Host "Commit: ${{ github.sha }}" -ForegroundColor White
+          Write-Host "Actor: ${{ github.actor }}" -ForegroundColor White
+          Write-Host "=========================" -ForegroundColor Cyan
