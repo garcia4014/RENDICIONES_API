@@ -391,6 +391,8 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
         {
             try
             {
+                if (serie == null && correlativo == null) return false;
+
                 var comprobantes = await _comprobantePagoDao.GetBySerieCorrelattivoAsync(serie, correlativo);
 
                 if (idExcluir.HasValue)

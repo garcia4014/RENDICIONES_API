@@ -136,14 +136,9 @@ namespace CapaNegocio.ContabilidadAPI.Models.DTO
         [StringLength(10, ErrorMessage = "El tipo de comprobante no puede exceder 10 caracteres")]
         public string? TipoComprobante { get; set; }
         [StringLength(100, ErrorMessage = "La descripción no puede exceder 100 caracteres")]
-        public string? Descripcion { get; set; }
-
-        [Required(ErrorMessage = "La serie es obligatoria")]
-        [StringLength(10, ErrorMessage = "La serie no puede exceder 10 caracteres")]
-        public string Serie { get; set; } = string.Empty;
-        [Required(ErrorMessage = "El correlativo es obligatorio")]
-        [StringLength(10, ErrorMessage = "El correlativo no puede exceder 10 caracteres")]
-        public string Correlativo { get; set; } = string.Empty;
+        public string? Descripcion { get; set; } 
+        public string? Serie { get; set; } = string.Empty; 
+        public string? Correlativo { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "La fecha de emisión es obligatoria")]
         public DateTime FechaEmision { get; set; }
