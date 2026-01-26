@@ -36,6 +36,9 @@ namespace CapaDatos.ContabilidadAPI
         // DbSet para notificaciones
         public virtual DbSet<Notificacion> Notificaciones { get; set; }
 
+        // DbSet para parámetros
+        public virtual DbSet<Parametros> Parametros { get; set; }
+
         //protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         //    => optionsBuilder.UseSqlServer("");
 

@@ -251,6 +251,7 @@ builder.Services.AddScoped<IComprobantePago, ComprobantePagoImpl>();
 builder.Services.AddScoped<INotificacionDao, NotificacionDaoImpl>();
 builder.Services.AddScoped<IPersonalDao, PersonalDaoImpl>();
 builder.Services.AddScoped<IUsuarioTipoPersonaDao, UsuarioTipoPersonaDaoImpl>();
+builder.Services.AddScoped<IParametrosDao, ParametrosDaoImpl>();
 
 //REPOSITORY
 builder.Services.AddScoped<ITipoGastoServices, TipoGastoServicesImpl>();

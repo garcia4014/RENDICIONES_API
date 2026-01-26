@@ -270,13 +270,49 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
 
                 var comprobante = _mapper.Map<ComprobantePago>(createDto);
                 
-                // Calcular IGVPorcentaje automáticamente
-                if (comprobante.IgvEspecial == true)
+                // Calcular IGV total basándose en los montos específicos
+                decimal igvGravado = (comprobante.MontoGravado ?? 0) * 0.18m;
+                decimal igvEspecial = (comprobante.MontoIgvEspecial ?? 0) * 0.10m;
+                decimal igvTotal = igvGravado + igvEspecial;
+                
+                comprobante.Igv = igvTotal;
+                
+                // Calcular IgvPorcentaje según los tipos de afectación presentes
+                bool tieneGravado = (comprobante.MontoGravado ?? 0) > 0;
+                bool tieneEspecial = (comprobante.MontoIgvEspecial ?? 0) > 0;
+                bool tieneExonerado = (comprobante.MontoExonerado ?? 0) > 0;
+                bool tieneInafecto = (comprobante.MontoInafecto ?? 0) > 0;
+                bool tieneOtrosCargos = (comprobante.MontoOtrosCargos ?? 0) > 0;
+                
+                // Determinar porcentaje: si hay múltiples tipos, dejarlo null o calcular efectivo
+                if (tieneGravado && tieneEspecial)
+                {
+                    // Mixto: calcular porcentaje efectivo
+                    decimal baseImponible = (comprobante.MontoGravado ?? 0) + (comprobante.MontoIgvEspecial ?? 0);
+                    comprobante.IgvPorcentaje = baseImponible > 0 ? (int)Math.Round((igvTotal / baseImponible) * 100) : 0;
+                }
+                else if (tieneEspecial)
+                {
                     comprobante.IgvPorcentaje = 10;
-                else if (comprobante.Exonerado == true || comprobante.Inafecto == true)
+                }
+                else if (tieneExonerado || tieneInafecto || tieneOtrosCargos)
+                {
                     comprobante.IgvPorcentaje = 0;
-                else
+                }
+                else if (tieneGravado)
+                {
                     comprobante.IgvPorcentaje = 18;
+                }
+                else
+                {
+                    // Por defecto (caso legacy sin montos específicos)
+                    if (comprobante.IgvEspecial == true)
+                        comprobante.IgvPorcentaje = 10;
+                    else if (comprobante.Exonerado == true || comprobante.Inafecto == true)
+                        comprobante.IgvPorcentaje = 0;
+                    else
+                        comprobante.IgvPorcentaje = 18;
+                }
 
                 var comprobanteCreado = await _comprobantePagoDao.CreateAsync(comprobante);
                 var comprobanteDto = _mapper.Map<ComprobantePagoDto>(comprobanteCreado);
@@ -341,13 +377,49 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                 comprobante.Ruta = comprobanteExistente.Ruta;
                 comprobante.ValidoSunat = false;
                 
-                // Calcular IGVPorcentaje automáticamente
-                if (comprobante.IgvEspecial == true)
+                // Calcular IGV total basándose en los montos específicos
+                decimal igvGravado = (comprobante.MontoGravado ?? 0) * 0.18m;
+                decimal igvEspecial = (comprobante.MontoIgvEspecial ?? 0) * 0.10m;
+                decimal igvTotal = igvGravado + igvEspecial;
+                
+                comprobante.Igv = igvTotal;
+                
+                // Calcular IgvPorcentaje según los tipos de afectación presentes
+                bool tieneGravado = (comprobante.MontoGravado ?? 0) > 0;
+                bool tieneEspecial = (comprobante.MontoIgvEspecial ?? 0) > 0;
+                bool tieneExonerado = (comprobante.MontoExonerado ?? 0) > 0;
+                bool tieneInafecto = (comprobante.MontoInafecto ?? 0) > 0;
+                bool tieneOtrosCargos = (comprobante.MontoOtrosCargos ?? 0) > 0;
+                
+                // Determinar porcentaje: si hay múltiples tipos, calcular efectivo
+                if (tieneGravado && tieneEspecial)
+                {
+                    // Mixto: calcular porcentaje efectivo
+                    decimal baseImponible = (comprobante.MontoGravado ?? 0) + (comprobante.MontoIgvEspecial ?? 0);
+                    comprobante.IgvPorcentaje = baseImponible > 0 ? (int)Math.Round((igvTotal / baseImponible) * 100) : 0;
+                }
+                else if (tieneEspecial)
+                {
                     comprobante.IgvPorcentaje = 10;
-                else if (comprobante.Exonerado == true || comprobante.Inafecto == true)
+                }
+                else if (tieneExonerado || tieneInafecto || tieneOtrosCargos)
+                {
                     comprobante.IgvPorcentaje = 0;
-                else
+                }
+                else if (tieneGravado)
+                {
                     comprobante.IgvPorcentaje = 18;
+                }
+                else
+                {
+                    // Por defecto (caso legacy sin montos específicos)
+                    if (comprobante.IgvEspecial == true)
+                        comprobante.IgvPorcentaje = 10;
+                    else if (comprobante.Exonerado == true || comprobante.Inafecto == true)
+                        comprobante.IgvPorcentaje = 0;
+                    else
+                        comprobante.IgvPorcentaje = 18;
+                }
 
                 var comprobanteActualizado = await _comprobantePagoDao.UpdateAsync(comprobante);
 

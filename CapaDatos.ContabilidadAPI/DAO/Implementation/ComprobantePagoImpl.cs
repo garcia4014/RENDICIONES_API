@@ -150,6 +150,7 @@ namespace CapaDatos.ContabilidadAPI.DAO.Implementation
                 existingComprobante.Ruta = comprobante.Ruta;
                 existingComprobante.ValidoSunat = comprobante.ValidoSunat;
                 existingComprobante.Notas = comprobante.Notas;
+                existingComprobante.PlacaVehicular = comprobante.PlacaVehicular;
                 existingComprobante.Inafecto = comprobante.Inafecto;
                 existingComprobante.Exonerado = comprobante.Exonerado;
 

@@ -90,6 +90,11 @@ namespace CapaNegocio.ContabilidadAPI.Models.DTO
         public string? Notas { get; set; }
 
         /// <summary>
+        /// Placa vehicular (para gastos relacionados al vehículo)
+        /// </summary>
+        public string? PlacaVehicular { get; set; }
+
+        /// <summary>
         /// Estado activo
         /// </summary>
         public bool? Activo { get; set; }
@@ -119,6 +124,13 @@ namespace CapaNegocio.ContabilidadAPI.Models.DTO
         public decimal? Igv { get; set; } = 0m; 
         public decimal? Subtotal { get; set; } = 0m;
         public bool? IgvEspecial { get; set; } = false;
+        public bool? Gravado { get; set; } = false;
+        public bool? OtrosCargos { get; set; } = false;
+        public decimal? MontoExonerado { get; set; } = 0m;
+        public decimal? MontoInafecto { get; set; } = 0m;
+        public decimal? MontoIgvEspecial { get; set; } = 0m;
+        public decimal? MontoGravado { get; set; } = 0m;
+        public decimal? MontoOtrosCargos { get; set; } = 0m;
         public int? IgvPorcentaje { get; set; }
 
 
@@ -160,11 +172,23 @@ namespace CapaNegocio.ContabilidadAPI.Models.DTO
 
         [StringLength(300, ErrorMessage = "Las notas no pueden exceder 300 caracteres")]
         public string? Notas { get; set; }
+        
+        [StringLength(10, ErrorMessage = "La placa vehicular no puede exceder 10 caracteres")]
+        [RegularExpression(@"^[A-HJ-NP-Z]{3}-\d{3}$", ErrorMessage = "Formato de placa inválido. Use ABC-123")]
+        public string? PlacaVehicular { get; set; }
+        
         public string? Extension { get; set; }
         public int? Observado { get; set; }
         public bool? IgvEspecial { get; set; } = false;
         public bool? Exonerado { get; set; } = false;
         public bool? Inafecto { get; set; } = false;
+        public bool? Gravado { get; set; } = false;
+        public bool? OtrosCargos { get; set; } = false;
+        public decimal? MontoExonerado { get; set; } = 0m;
+        public decimal? MontoInafecto { get; set; } = 0m;
+        public decimal? MontoIgvEspecial { get; set; } = 0m;
+        public decimal? MontoGravado { get; set; } = 0m;
+        public decimal? MontoOtrosCargos { get; set; } = 0m;
         public decimal? Igv { get; set; } = 0m;
         public decimal? Subtotal { get; set; } = 0m;
         public int? IgvPorcentaje { get; set; }
@@ -259,11 +283,26 @@ namespace CapaNegocio.ContabilidadAPI.Models.DTO
         /// </summary>
         [StringLength(300, ErrorMessage = "Las notas no pueden exceder 300 caracteres")]
         public string? Notas { get; set; }
+        
+        /// <summary>
+        /// Placa vehicular (para gastos relacionados al vehículo)
+        /// </summary>
+        [StringLength(10, ErrorMessage = "La placa vehicular no puede exceder 10 caracteres")]
+        [RegularExpression(@"^[A-HJ-NP-Z]{3}-\d{3}$",ErrorMessage = "Formato de placa inválido. Use ABC-123")]
+        public string? PlacaVehicular { get; set; }
+        
         public string? Extension { get; set; }
         public string? ResultadoSunat { get; set; }
         public bool? Exonerado { get; set; } = false;
         public bool? Inafecto { get; set; } = false;
         public bool? IgvEspecial { get; set; } = false;
+        public bool? Gravado { get; set; } = false;
+        public bool? OtrosCargos { get; set; } = false;
+        public decimal? MontoExonerado { get; set; } = 0m;
+        public decimal? MontoInafecto { get; set; } = 0m;
+        public decimal? MontoIgvEspecial { get; set; } = 0m;
+        public decimal? MontoGravado { get; set; } = 0m;
+        public decimal? MontoOtrosCargos { get; set; } = 0m;
         public int? IgvPorcentaje { get; set; }
 
         /// <summary>

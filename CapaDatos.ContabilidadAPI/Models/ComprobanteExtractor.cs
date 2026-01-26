@@ -16,6 +16,16 @@ namespace CapaDatos.ContabilidadAPI.Models
         public List<string> MontosTotales { get; set; } = new();
         public List<string> Series { get; set; } = new();
         public List<string> Correlativos { get; set; } = new();
+        
+        // Montos específicos por tipo de afectación
+        public List<string> MontosGravados { get; set; } = new();
+        public List<string> MontosInafectos { get; set; } = new();
+        public List<string> MontosExonerados { get; set; } = new();
+        public List<string> MontosIgvEspecial { get; set; } = new();
+        public List<string> MontosImpuestoConsumo { get; set; } = new();
+        
+        // Indicador de si se pudo extraer la afectación del IGV
+        public bool AfectacionIgvDetectada { get; set; } = false;
     }
 
     public static class ComprobanteExtractor
@@ -47,6 +57,22 @@ namespace CapaDatos.ContabilidadAPI.Models
 
         private static readonly Regex MontoTotalRegex =
             new Regex(@"(?<![0-9])(\d+\.\d{1,2})(?![0-9])", RegexOptions.Compiled);
+
+        // Regex para detectar montos de afectación del IGV
+        private static readonly Regex MontoGravadoRegex =
+            new Regex(@"(?:grava[dt]|base\s*imponible|op\.\s*grava[dt]|operaci[oó]n\s*grava[dt])[\s:\-]*(\d+\.\d{1,2})", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        private static readonly Regex MontoInafectoRegex =
+            new Regex(@"(?:inafect|no\s*afect|op\.\s*inafect)[\s:\-]*(\d+\.\d{1,2})", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        private static readonly Regex MontoExoneradoRegex =
+            new Regex(@"(?:exonera[dt]|op\.\s*exonera[dt])[\s:\-]*(\d+\.\d{1,2})", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        private static readonly Regex MontoIgvEspecialRegex =
+            new Regex(@"(?:igv\s*especial|igv\s*10%|10%\s*igv)[\s:\-]*(\d+\.\d{1,2})", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        private static readonly Regex MontoImpuestoConsumoRegex =
+            new Regex(@"(?:i\.?s\.?c\.?|impuesto\s*selectivo|impuesto\s*consumo|impuesto\s*al\s*consumo)[\s:\-]*(\d+\.\d{1,2})", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         public static ComprobanteExtractorResult Extract(string ocrText)
         {
@@ -110,6 +136,63 @@ namespace CapaDatos.ContabilidadAPI.Models
                 result.Correlativos.Add(m.Groups[1].Value);
             }
 
+            // =======================
+            // 7. Montos de Afectación del IGV
+            // =======================
+            bool afectacionDetectada = false;
+
+            // Monto Gravado
+            foreach (Match m in MontoGravadoRegex.Matches(ocrText))
+            {
+                if (m.Groups.Count > 1)
+                {
+                    result.MontosGravados.Add(m.Groups[1].Value);
+                    afectacionDetectada = true;
+                }
+            }
+
+            // Monto Inafecto
+            foreach (Match m in MontoInafectoRegex.Matches(ocrText))
+            {
+                if (m.Groups.Count > 1)
+                {
+                    result.MontosInafectos.Add(m.Groups[1].Value);
+                    afectacionDetectada = true;
+                }
+            }
+
+            // Monto Exonerado
+            foreach (Match m in MontoExoneradoRegex.Matches(ocrText))
+            {
+                if (m.Groups.Count > 1)
+                {
+                    result.MontosExonerados.Add(m.Groups[1].Value);
+                    afectacionDetectada = true;
+                }
+            }
+
+            // Monto IGV Especial
+            foreach (Match m in MontoIgvEspecialRegex.Matches(ocrText))
+            {
+                if (m.Groups.Count > 1)
+                {
+                    result.MontosIgvEspecial.Add(m.Groups[1].Value);
+                    afectacionDetectada = true;
+                }
+            }
+
+            // Monto Impuesto al Consumo (ISC)
+            foreach (Match m in MontoImpuestoConsumoRegex.Matches(ocrText))
+            {
+                if (m.Groups.Count > 1)
+                {
+                    result.MontosImpuestoConsumo.Add(m.Groups[1].Value);
+                    afectacionDetectada = true;
+                }
+            }
+
+            result.AfectacionIgvDetectada = afectacionDetectada;
+
             return result;
         }
 
@@ -127,6 +210,7 @@ namespace CapaDatos.ContabilidadAPI.Models
 
             try
             {
+                Console.WriteLine("[XML] Iniciando parseo de XML...");
                 XDocument doc = XDocument.Parse(xmlContent);
                 XNamespace cbc = "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2";
                 XNamespace cac = "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2";
@@ -135,9 +219,14 @@ namespace CapaDatos.ContabilidadAPI.Models
                 // Intentar obtener el namespace raíz (puede ser Invoice, CreditNote, DebitNote, etc.)
                 var root = doc.Root;
                 if (root == null)
+                {
+                    Console.WriteLine("[XML] Error: No se encontró nodo raíz");
                     return result;
+                }
 
                 var rootNamespace = root.GetDefaultNamespace();
+                Console.WriteLine($"[XML] Namespace raíz: {rootNamespace}");
+                Console.WriteLine($"[XML] Nombre del elemento raíz: {root.Name.LocalName}");
 
                 // 1. SERIE Y CORRELATIVO (ID del documento)
                 var documentId = root.Element(rootNamespace + "ID")?.Value ?? 
@@ -208,6 +297,195 @@ namespace CapaDatos.ContabilidadAPI.Models
                 {
                     result.MontosTotales.Add(montoTotal);
                 }
+
+                // 5. CARGOS ADICIONALES (AllowanceCharge)
+                bool afectacionDetectada = false;
+                
+                Console.WriteLine("[XML] Buscando AllowanceCharge...");
+                var allowanceCharges = root.Elements(rootNamespace + "AllowanceCharge").Concat(root.Elements(cac + "AllowanceCharge"));
+                var allowanceChargesList = allowanceCharges.ToList();
+                Console.WriteLine($"[XML] AllowanceCharge encontrados: {allowanceChargesList.Count}");
+                
+                foreach (var allowanceCharge in allowanceChargesList)
+                {
+                    var chargeIndicator = allowanceCharge.Element(cbc + "ChargeIndicator")?.Value;
+                    var reasonCode = allowanceCharge.Element(cbc + "AllowanceChargeReasonCode")?.Value;
+                    var amount = allowanceCharge.Element(cbc + "Amount")?.Value;
+                    
+                    Console.WriteLine($"[XML] AllowanceCharge - ChargeIndicator: {chargeIndicator}, ReasonCode: {reasonCode}, Amount: {amount}");
+                    
+                    // Si es un cargo (true) y tiene monto
+                    if (chargeIndicator == "true" && !string.IsNullOrEmpty(amount))
+                    {
+                        // Código 50 = Cargos adicionales (puede ser ISC, servicios, etc)
+                        if (reasonCode == "50")
+                        {
+                            Console.WriteLine($"[XML] Cargo adicional detectado (código 50): {amount}");
+                            result.MontosImpuestoConsumo.Add(amount);
+                            afectacionDetectada = true;
+                        }
+                    }
+                }
+
+                // 6. MONTOS DE AFECTACIÓN DEL IGV (desde TaxSubtotal)
+                Console.WriteLine("[XML] Buscando nodos TaxTotal...");
+                var taxTotals = root.Elements(rootNamespace + "TaxTotal").Concat(root.Elements(cac + "TaxTotal"));
+                var taxTotalsList = taxTotals.ToList();
+                Console.WriteLine($"[XML] TaxTotals encontrados: {taxTotalsList.Count}");
+                
+                foreach (var taxTotal in taxTotalsList)
+                {
+                    Console.WriteLine($"[XML] Procesando TaxTotal: {taxTotal.Name}");
+                    var taxSubtotals = taxTotal.Elements(cac + "TaxSubtotal");
+                    var taxSubtotalsList = taxSubtotals.ToList();
+                    Console.WriteLine($"[XML] TaxSubtotals encontrados: {taxSubtotalsList.Count}");
+                    
+                    foreach (var taxSubtotal in taxSubtotalsList)
+                    {
+                        Console.WriteLine($"[XML] Procesando TaxSubtotal...");
+                        var taxCategory = taxSubtotal.Element(cac + "TaxCategory");
+                        Console.WriteLine($"[XML] TaxCategory encontrado: {taxCategory != null}");
+                        
+                        var taxExemptionReasonCode = taxCategory?.Element(cbc + "TaxExemptionReasonCode")?.Value;
+                        var taxableAmount = taxSubtotal.Element(cbc + "TaxableAmount")?.Value;
+                        
+                        Console.WriteLine($"[XML] TaxExemptionReasonCode: {taxExemptionReasonCode ?? "NULL"}");
+                        Console.WriteLine($"[XML] TaxableAmount: {taxableAmount ?? "NULL"}");
+                        
+                        // Verificar si es ISC por TaxScheme
+                        var taxScheme = taxCategory?.Element(cac + "TaxScheme");
+                        var taxSchemeId = taxScheme?.Element(cbc + "ID")?.Value;
+                        Console.WriteLine($"[XML] TaxSchemeId: {taxSchemeId ?? "NULL"}");
+                        
+                        if (!string.IsNullOrEmpty(taxableAmount))
+                        {
+                            Console.WriteLine($"[XML] Evaluando taxableAmount: {taxableAmount}");
+                            
+                            // Si es ISC (código 2000)
+                            if (taxSchemeId == "2000")
+                            {
+                                Console.WriteLine($"[XML] ISC detectado: {taxableAmount}");
+                                result.MontosImpuestoConsumo.Add(taxableAmount);
+                                afectacionDetectada = true;
+                                continue;
+                            }
+                            
+                            // Códigos SUNAT para IGV:
+                            // 10 = Gravado - Operación Onerosa
+                            // 20 = Exonerado - Operación Onerosa
+                            // 30 = Inafecto - Operación Onerosa
+                            // 17 = Gravado - IVAP (IGV Especial 10%)
+                            // 50 = ISC (Impuesto Selectivo al Consumo)
+                            
+                            switch (taxExemptionReasonCode)
+                            {
+                                case "10": // Gravado
+                                    Console.WriteLine($"[XML] Gravado detectado: {taxableAmount}");
+                                    result.MontosGravados.Add(taxableAmount);
+                                    afectacionDetectada = true;
+                                    break;
+                                case "20": // Exonerado
+                                    Console.WriteLine($"[XML] Exonerado detectado: {taxableAmount}");
+                                    result.MontosExonerados.Add(taxableAmount);
+                                    afectacionDetectada = true;
+                                    break;
+                                case "30": // Inafecto
+                                    Console.WriteLine($"[XML] Inafecto detectado: {taxableAmount}");
+                                    result.MontosInafectos.Add(taxableAmount);
+                                    afectacionDetectada = true;
+                                    break;
+                                case "17": // IGV Especial (IVAP)
+                                    Console.WriteLine($"[XML] IGV Especial detectado: {taxableAmount}");
+                                    result.MontosIgvEspecial.Add(taxableAmount);
+                                    afectacionDetectada = true;
+                                    break;
+                                case "50": // ISC
+                                    Console.WriteLine($"[XML] ISC (código 50) detectado: {taxableAmount}");
+                                    result.MontosImpuestoConsumo.Add(taxableAmount);
+                                    afectacionDetectada = true;
+                                    break;
+                                default:
+                                    Console.WriteLine($"[XML] Código desconocido: {taxExemptionReasonCode}");
+                                    break;
+                            }
+                        }
+                        else
+                        {
+                            Console.WriteLine("[XML] TaxableAmount es NULL o vacío");
+                        }
+                    }
+                }
+                
+                result.AfectacionIgvDetectada = afectacionDetectada;
+                
+                // Siempre buscar en InvoiceLine para capturar montos detallados por línea
+                Console.WriteLine("[XML] Buscando en InvoiceLines...");
+                var invoiceLines = root.Elements(rootNamespace + "InvoiceLine").Concat(root.Elements(cac + "InvoiceLine"));
+                var invoiceLinesList = invoiceLines.ToList();
+                Console.WriteLine($"[XML] InvoiceLines encontrados: {invoiceLinesList.Count}");
+                
+                foreach (var invoiceLine in invoiceLinesList)
+                {
+                    var lineTaxTotals = invoiceLine.Elements(cac + "TaxTotal");
+                    foreach (var lineTaxTotal in lineTaxTotals)
+                    {
+                        var lineTaxSubtotals = lineTaxTotal.Elements(cac + "TaxSubtotal");
+                        foreach (var lineTaxSubtotal in lineTaxSubtotals)
+                        {
+                            var lineTaxCategory = lineTaxSubtotal.Element(cac + "TaxCategory");
+                            var lineTaxExemptionReasonCode = lineTaxCategory?.Element(cbc + "TaxExemptionReasonCode")?.Value;
+                            var lineTaxableAmount = lineTaxSubtotal.Element(cbc + "TaxableAmount")?.Value;
+                            
+                            Console.WriteLine($"[XML-LINE] TaxExemptionReasonCode: {lineTaxExemptionReasonCode ?? "NULL"}");
+                            Console.WriteLine($"[XML-LINE] TaxableAmount: {lineTaxableAmount ?? "NULL"}");
+                            
+                            if (!string.IsNullOrEmpty(lineTaxableAmount) && !string.IsNullOrEmpty(lineTaxExemptionReasonCode))
+                            {
+                                // Sumar el monto al tipo correspondiente (evitar duplicados)
+                                switch (lineTaxExemptionReasonCode)
+                                {
+                                    case "10": // Gravado
+                                        if (!result.MontosGravados.Contains(lineTaxableAmount))
+                                        {
+                                            Console.WriteLine($"[XML-LINE] Gravado detectado: {lineTaxableAmount}");
+                                            result.MontosGravados.Add(lineTaxableAmount);
+                                            afectacionDetectada = true;
+                                        }
+                                        break;
+                                    case "20": // Exonerado
+                                        if (!result.MontosExonerados.Contains(lineTaxableAmount))
+                                        {
+                                            Console.WriteLine($"[XML-LINE] Exonerado detectado: {lineTaxableAmount}");
+                                            result.MontosExonerados.Add(lineTaxableAmount);
+                                            afectacionDetectada = true;
+                                        }
+                                        break;
+                                    case "30": // Inafecto
+                                        if (!result.MontosInafectos.Contains(lineTaxableAmount))
+                                        {
+                                            Console.WriteLine($"[XML-LINE] Inafecto detectado: {lineTaxableAmount}");
+                                            result.MontosInafectos.Add(lineTaxableAmount);
+                                            afectacionDetectada = true;
+                                        }
+                                        break;
+                                    case "17": // IGV Especial (IVAP)
+                                        if (!result.MontosIgvEspecial.Contains(lineTaxableAmount))
+                                        {
+                                            Console.WriteLine($"[XML-LINE] IGV Especial detectado: {lineTaxableAmount}");
+                                            result.MontosIgvEspecial.Add(lineTaxableAmount);
+                                            afectacionDetectada = true;
+                                        }
+                                        break;
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                result.AfectacionIgvDetectada = afectacionDetectada;
+                
+                Console.WriteLine($"[XML] Resultado final - Gravados: {result.MontosGravados.Count}, Inafectos: {result.MontosInafectos.Count}, Exonerados: {result.MontosExonerados.Count}, IgvEspecial: {result.MontosIgvEspecial.Count}, ImpuestoConsumo: {result.MontosImpuestoConsumo.Count}");
+                Console.WriteLine($"[XML] AfectacionDetectada: {afectacionDetectada}");
 
                 return result;
             }

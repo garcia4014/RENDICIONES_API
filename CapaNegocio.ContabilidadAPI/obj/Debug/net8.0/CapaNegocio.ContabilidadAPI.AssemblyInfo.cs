@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("CapaNegocio.ContabilidadAPI")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+70b67354dbb80c783330bfac9078c68653ef9168")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+2a5f2f0410abb0a0a1bd4cf699fbd14a9c8f40eb")]
 [assembly: System.Reflection.AssemblyProductAttribute("CapaNegocio.ContabilidadAPI")]
 [assembly: System.Reflection.AssemblyTitleAttribute("CapaNegocio.ContabilidadAPI")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

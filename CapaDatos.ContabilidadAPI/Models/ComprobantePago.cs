@@ -60,6 +60,10 @@ namespace CapaDatos.ContabilidadAPI.Models
         [StringLength(300)]
         public string? Notas { get; set; }
 
+        [Column("PlacaVehicular")]
+        [StringLength(10)]
+        public string? PlacaVehicular { get; set; }
+
         [Column("Activo")]
         public bool Activo { get; set; } = true;
 
@@ -98,6 +102,27 @@ namespace CapaDatos.ContabilidadAPI.Models
 
         [Column("IGV_ESPECIAL")]
         public bool? IgvEspecial { get; set; } = false;
+
+        [Column("GRAVADO")]
+        public bool? Gravado { get; set; } = false;
+
+        [Column("OTROS_CARGOS")]
+        public bool? OtrosCargos { get; set; } = false;
+
+        [Column("MONTO_EXONERADO")]
+        public decimal? MontoExonerado { get; set; } = 0m;
+
+        [Column("MONTO_INAFECTO")]
+        public decimal? MontoInafecto { get; set; } = 0m;
+
+        [Column("MONTO_IGV_ESPECIAL")]
+        public decimal? MontoIgvEspecial { get; set; } = 0m;
+
+        [Column("MONTO_GRAVADO")]
+        public decimal? MontoGravado { get; set; } = 0m;
+
+        [Column("MONTO_OTROS_CARGOS")]
+        public decimal? MontoOtrosCargos { get; set; } = 0m;
 
         [Column("IGVPorcentaje")]
         public int? IgvPorcentaje { get; set; }

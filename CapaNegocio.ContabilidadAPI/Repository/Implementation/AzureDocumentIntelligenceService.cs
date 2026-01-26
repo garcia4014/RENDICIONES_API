@@ -7,6 +7,9 @@ using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.IO.Compression;
+using CapaDatos.ContabilidadAPI;
+using Microsoft.EntityFrameworkCore;
 
 namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
 {
@@ -18,15 +21,43 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
         private readonly ILogger<AzureDocumentIntelligenceService> _logger;
         private readonly AzureDocumentIntelligenceConfigurationDto _configuration;
         private readonly HttpClient _httpClient;
+        private readonly SvrendicionesContext _dbContext;
+
+        // Mapeo de tipos de comprobante SUNAT
+        private static readonly Dictionary<string, string> TipoComprobanteMap = new()
+        {
+            { "FACTURA", "01" },
+            { "BOLETA", "03" },
+            { "NOTA_CREDITO_FACTURA", "F7" },
+            { "NOTA_DEBITO_FACTURA", "F8" },
+            { "NOTA_CREDITO_BOLETA", "B7" },
+            { "NOTA_DEBITO_BOLETA", "B8" },
+            { "RECIBO_HONORARIOS", "02" },
+            { "LIQUIDACION", "04" },
+            { "TICKET_POS", "11" },
+            { "MONEDERO_ELECTRONICO", "12" },
+            { "NOTA_CREDITO_POS", "P7" },
+            { "NOTA_CREDITO_ME", "M7" },
+            { "NOTA_CREDITO_RHE", "R7" },
+            { "RETENCION", "20" },
+            { "PERCEPCION", "40" },
+            { "POLIZA", "23" },
+            { "OTROS_4TA_CAT_RHE", "R2" },
+            { "DOC_ADQUIRIENTE_TERCEROS", "30" },
+            { "DOC_OPERADOR", "34" },
+            { "DOC_ADQUIRIDO_ELLA", "42" }
+        };
 
         public AzureDocumentIntelligenceService(
             ILogger<AzureDocumentIntelligenceService> logger,
             IOptions<AzureDocumentIntelligenceConfigurationDto> configuration,
-            HttpClient httpClient)
+            HttpClient httpClient,
+            SvrendicionesContext dbContext)
         {
             _logger = logger;
             _configuration = configuration.Value;
             _httpClient = httpClient;
+            _dbContext = dbContext;
             _httpClient.Timeout = TimeSpan.FromSeconds(_configuration.TimeoutSeconds);
         }
 
@@ -391,19 +422,65 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                     result.MontosTotales.Add(amount);
                 }
 
+                // Intentar extraer montos de afectación del IGV
+                bool afectacionDetectada = false;
+                
+                // Monto Gravado - Subtotal gravado (Base imponible para IGV 18%)
+                if (fields.TryGetValue("SubTotal", out var subTotal) && 
+                    subTotal?.ValueCurrency?.Amount != null)
+                {
+                    var amount = subTotal.ValueCurrency.Amount.Value.ToString("F2");
+                    result.MontosGravados.Add(amount);
+                    afectacionDetectada = true;
+                }
+                
+                // Monto Inafecto - buscar en campos personalizados
+                if (fields.TryGetValue("TaxExemptAmount", out var taxExempt) && 
+                    taxExempt?.ValueCurrency?.Amount != null)
+                {
+                    var amount = taxExempt.ValueCurrency.Amount.Value.ToString("F2");
+                    result.MontosInafectos.Add(amount);
+                    afectacionDetectada = true;
+                }
+                
+                // Monto Exonerado - buscar en campos personalizados
+                if (fields.TryGetValue("ExemptAmount", out var exempt) && 
+                    exempt?.ValueCurrency?.Amount != null)
+                {
+                    var amount = exempt.ValueCurrency.Amount.Value.ToString("F2");
+                    result.MontosExonerados.Add(amount);
+                    afectacionDetectada = true;
+                }
+                
+                // Monto IGV Especial (10%) - buscar en campos personalizados
+                if (fields.TryGetValue("SpecialTaxAmount", out var specialTax) && 
+                    specialTax?.ValueCurrency?.Amount != null)
+                {
+                    var amount = specialTax.ValueCurrency.Amount.Value.ToString("F2");
+                    result.MontosIgvEspecial.Add(amount);
+                    afectacionDetectada = true;
+                }
+                
+                result.AfectacionIgvDetectada = afectacionDetectada;
+
                 // Extraer Serie y Correlativo (InvoiceId)
+                _logger.LogInformation("Intentando extraer Serie y Correlativo del campo InvoiceId...");
+                
                 if (fields.TryGetValue("InvoiceId", out var invoiceId))
                 {
+                    _logger.LogInformation("Campo InvoiceId encontrado en Azure response");
                     string? invoiceIdValue = null;
                     
                     // Intentar obtener el valor de diferentes propiedades
                     if (!string.IsNullOrWhiteSpace(invoiceId?.ValueString))
                     {
                         invoiceIdValue = invoiceId.ValueString.Trim();
+                        _logger.LogInformation("InvoiceId.ValueString: {Value}", invoiceIdValue);
                     }
                     else if (!string.IsNullOrWhiteSpace(invoiceId?.Content))
                     {
                         invoiceIdValue = invoiceId.Content.Trim();
+                        _logger.LogInformation("InvoiceId.Content: {Value}", invoiceIdValue);
                     }
                     
                     if (!string.IsNullOrWhiteSpace(invoiceIdValue))
@@ -459,11 +536,84 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                         _logger.LogWarning("InvoiceId está presente pero sin valor");
                     }
                 }
+                else
+                {
+                    _logger.LogWarning("Campo InvoiceId NO encontrado en Azure response");
+                }
+                
+                // Si no se extrajeron Serie/Correlativo, intentar desde el texto completo
+                if (!result.Series.Any() || !result.Correlativos.Any())
+                {
+                    _logger.LogInformation("Serie/Correlativo vacíos, intentando extraer desde texto OCR completo...");
+                    var textoCompleto = azureResponse.AnalyzeResult.Content ?? string.Empty;
+                    _logger.LogInformation("Texto OCR disponible: {Length} caracteres", textoCompleto.Length);
+                    
+                    if (!string.IsNullOrWhiteSpace(textoCompleto))
+                    {
+                        // Buscar serie con regex: B, F, E seguido de números
+                        var serieMatch = System.Text.RegularExpressions.Regex.Match(
+                            textoCompleto, 
+                            @"\b([BFE][A-Z0-9]{2,3})\s*[-:\s]\s*(\d{1,8})\b",
+                            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                        
+                        if (serieMatch.Success && serieMatch.Groups.Count >= 3)
+                        {
+                            var serieFromText = serieMatch.Groups[1].Value.ToUpper();
+                            var correlativoFromText = serieMatch.Groups[2].Value;
+                            
+                            if (!result.Series.Any())
+                            {
+                                result.Series.Add(serieFromText);
+                                _logger.LogInformation("Serie extraída desde texto OCR: {Serie}", serieFromText);
+                            }
+                            
+                            if (!result.Correlativos.Any())
+                            {
+                                result.Correlativos.Add(correlativoFromText);
+                                _logger.LogInformation("Correlativo extraído desde texto OCR: {Correlativo}", correlativoFromText);
+                            }
+                        }
+                        else
+                        {
+                            _logger.LogWarning("No se pudo extraer Serie/Correlativo desde texto OCR con regex");
+                        }
+                    }
+                }
 
                 _logger.LogInformation("Conversión completada: RUCs={RucCount}, RazonesSociales={RsCount}, " +
-                                     "Fechas={FechaCount}, Montos={MontoCount}, Series={SerieCount}, Correlativos={CorrCount}",
+                                     "Fechas={FechaCount}, Montos={MontoCount}, Series={SerieCount}, Correlativos={CorrCount}, " +
+                                     "MontosGravados={GravadoCount}, MontosInafectos={InafectoCount}, " +
+                                     "MontosExonerados={ExoneradoCount}, MontosIgvEspecial={EspecialCount}, MontosImpuestoConsumo={IscCount}, AfectacionDetectada={AfectacionDetectada}",
                     result.Rucs.Count, result.RazonesSociales.Count, result.FechasEmision.Count,
-                    result.MontosTotales.Count, result.Series.Count, result.Correlativos.Count);
+                    result.MontosTotales.Count, result.Series.Count, result.Correlativos.Count,
+                    result.MontosGravados.Count, result.MontosInafectos.Count, result.MontosExonerados.Count,
+                    result.MontosIgvEspecial.Count, result.MontosImpuestoConsumo.Count, result.AfectacionIgvDetectada);
+
+                // Intentar obtener XML desde SUNAT si tenemos los datos básicos
+                _logger.LogInformation("Evaluando si consultar SUNAT: RUC={HasRuc}, Serie={HasSerie}, Correlativo={HasCorr}",
+                    result.Rucs.Any(), result.Series.Any(), result.Correlativos.Any());
+                
+                if (result.Rucs.Any() && result.Series.Any() && result.Correlativos.Any())
+                {
+                    _logger.LogInformation("Condiciones cumplidas, consultando XML en SUNAT...");
+                    var xmlResult = ObtenerXmlDesdeSunatAsync(result.Rucs.First(), result.Series.First(), result.Correlativos.First()).Result;
+                    if (xmlResult != null)
+                    {
+                        _logger.LogInformation("XML obtenido de SUNAT exitosamente, sobrescribiendo valores de afectación");
+                        result = xmlResult;
+                    }
+                    else
+                    {
+                        _logger.LogWarning("No se pudo obtener XML desde SUNAT, usando valores extraídos por Azure");
+                    }
+                }
+                else
+                {
+                    _logger.LogWarning("No se puede consultar SUNAT: Faltan datos básicos (RUC={Ruc}, Serie={Serie}, Correlativo={Corr})",
+                        result.Rucs.FirstOrDefault() ?? "NULL",
+                        result.Series.FirstOrDefault() ?? "NULL",
+                        result.Correlativos.FirstOrDefault() ?? "NULL");
+                }
             }
             catch (Exception ex)
             {
@@ -471,6 +621,184 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Obtiene el XML del comprobante desde la API de SUNAT
+        /// </summary>
+        private async Task<CapaDatos.ContabilidadAPI.Models.ComprobanteExtractorResult?> ObtenerXmlDesdeSunatAsync(
+            string ruc, string serie, string correlativo)
+        {
+            try
+            {
+                _logger.LogInformation("===== INICIO: Obtención XML desde SUNAT =====");
+                _logger.LogInformation("Parámetros: RUC={Ruc}, Serie={Serie}, Correlativo={Correlativo}", ruc, serie, correlativo);
+
+                // Obtener token de autorización desde BD
+                _logger.LogInformation("PASO 1: Consultando token SUNAT en BD (PARAMETROS.Id=1)...");
+                var parametro = await _dbContext.Parametros
+                    .FirstOrDefaultAsync(p => p.Id == 1);
+
+                if (parametro == null || string.IsNullOrWhiteSpace(parametro.Valor))
+                {
+                    _logger.LogWarning("No se encontró el token SUNAT en la tabla PARAMETROS (Id=1)");
+                    return null;
+                }
+
+                var token = parametro.Valor;
+                _logger.LogInformation("Token SUNAT obtenido exitosamente (longitud: {Length} caracteres)", token.Length);
+
+                // Determinar tipo de comprobante por la serie
+                _logger.LogInformation("PASO 2: Determinando tipo de comprobante por serie '{Serie}'...", serie);
+                string tipoComprobante = DeterminarTipoComprobante(serie);
+                _logger.LogInformation("Tipo de comprobante determinado: {Tipo}", tipoComprobante);
+
+                // Construir URL
+                _logger.LogInformation("PASO 3: Construyendo URL de consulta...");
+                var url = $"https://api-cpe.sunat.gob.pe/v1/contribuyente/consultacpe/comprobantes/{ruc}-{tipoComprobante}-{serie}-{correlativo}-2/02";
+                _logger.LogInformation("URL construida: {Url}", url);
+
+                // Configurar request
+                _logger.LogInformation("PASO 4: Configurando headers y realizando petición HTTP GET...");
+                var request = new HttpRequestMessage(HttpMethod.Get, url);
+                request.Headers.Add("Accept", "application/json, text/plain, */*");
+                // NO agregar Accept-Encoding manualmente - HttpClient maneja la descompresión automática
+                request.Headers.Add("Accept-Language", "es,es-ES;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6,es-PE;q=0.5");
+                request.Headers.Add("Origin", "https://e-factura.sunat.gob.pe");
+                request.Headers.Add("Referer", "https://e-factura.sunat.gob.pe/");
+                request.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 Edg/144.0.0.0");
+                request.Headers.Add("Authorization", $"Bearer {token}");
+
+                var response = await _httpClient.SendAsync(request);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    _logger.LogWarning("Error al consultar SUNAT: {StatusCode} - {Error}", response.StatusCode, errorContent);
+                    return null;
+                }
+                
+                _logger.LogInformation("Respuesta HTTP exitosa: {StatusCode}", response.StatusCode);
+
+                _logger.LogInformation("PASO 5: Procesando respuesta JSON...");
+                var jsonResponse = await response.Content.ReadAsStringAsync();
+                _logger.LogInformation("JSON recibido (longitud: {Length} caracteres)", jsonResponse.Length);
+                
+                var sunatResponse = JsonSerializer.Deserialize<SunatXmlResponse>(jsonResponse, 
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                if (sunatResponse == null || string.IsNullOrWhiteSpace(sunatResponse.ValArchivo))
+                {
+                    _logger.LogWarning("Respuesta de SUNAT vacía o sin valArchivo");
+                    return null;
+                }
+                
+                _logger.LogInformation("Archivo recibido: {NomArchivo}, ValArchivo (Base64 longitud: {Length})", 
+                    sunatResponse.NomArchivo, sunatResponse.ValArchivo?.Length ?? 0);
+
+                // Decodificar Base64 y extraer XML del ZIP
+                _logger.LogInformation("PASO 6: Decodificando Base64 y extrayendo XML del ZIP...");
+                var xmlContent = ExtraerXmlDeZip(sunatResponse.ValArchivo);
+                
+                if (string.IsNullOrWhiteSpace(xmlContent))
+                {
+                    _logger.LogWarning("No se pudo extraer XML del archivo ZIP");
+                    return null;
+                }
+
+                _logger.LogInformation("XML extraído exitosamente (longitud: {Length} caracteres)", xmlContent.Length);
+                _logger.LogInformation("PASO 7: Procesando XML con ExtractFromXml...");
+                
+                // Procesar XML con el método existente
+                var result = CapaDatos.ContabilidadAPI.Models.ComprobanteExtractor.ExtractFromXml(xmlContent);
+                
+                _logger.LogInformation("XML procesado - Gravados: {G}, Inafectos: {I}, Exonerados: {E}, IgvEspecial: {IE}, ImpuestoConsumo: {IC}, AfectacionDetectada: {AD}",
+                    result.MontosGravados.Count, result.MontosInafectos.Count, result.MontosExonerados.Count,
+                    result.MontosIgvEspecial.Count, result.MontosImpuestoConsumo.Count, result.AfectacionIgvDetectada);
+                
+                    _logger.LogInformation("===== FIN: XML obtenido y procesado exitosamente =====");
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al obtener XML desde SUNAT");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Determina el tipo de comprobante SUNAT según la serie
+        /// </summary>
+        private string DeterminarTipoComprobante(string serie)
+        {
+            if (string.IsNullOrWhiteSpace(serie))
+                return "01"; // Factura por defecto
+
+            var serieUpper = serie.ToUpper();
+
+            // Factura: F, FA, FE
+            if (serieUpper.StartsWith("F") || serieUpper.StartsWith("E"))
+                return "01";
+
+            // Boleta: B, BA, BE
+            if (serieUpper.StartsWith("B"))
+                return "03";
+
+            // Por defecto, Factura
+            return "01";
+        }
+
+        /// <summary>
+        /// Extrae el contenido XML de un archivo ZIP codificado en Base64
+        /// </summary>
+        private string? ExtraerXmlDeZip(string base64Zip)
+        {
+            try
+            {
+                _logger.LogInformation("Decodificando Base64 (longitud: {Length})...", base64Zip.Length);
+                var zipBytes = Convert.FromBase64String(base64Zip);
+                _logger.LogInformation("ZIP decodificado: {Size} bytes", zipBytes.Length);
+                
+                using var zipStream = new MemoryStream(zipBytes);
+                using var archive = new ZipArchive(zipStream, ZipArchiveMode.Read);
+                
+                _logger.LogInformation("ZIP abierto, contiene {Count} entradas", archive.Entries.Count);
+                foreach (var entry in archive.Entries)
+                {
+                    _logger.LogInformation("Entrada en ZIP: {Name} ({Size} bytes)", entry.Name, entry.Length);
+                }
+                
+                // Buscar el primer archivo .xml en el ZIP
+                var xmlEntry = archive.Entries.FirstOrDefault(e => e.Name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase));
+                
+                if (xmlEntry == null)
+                {
+                    _logger.LogWarning("No se encontró archivo XML en el ZIP");
+                    return null;
+                }
+                
+                _logger.LogInformation("Archivo XML encontrado: {Name}, extrayendo contenido...", xmlEntry.Name);
+
+                using var entryStream = xmlEntry.Open();
+                using var reader = new StreamReader(entryStream, Encoding.UTF8);
+                var xmlContent = reader.ReadToEnd();
+                _logger.LogInformation("Contenido XML extraído: {Length} caracteres", xmlContent.Length);
+                return xmlContent;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al extraer XML del ZIP");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Clase para deserializar la respuesta de SUNAT
+        /// </summary>
+        private class SunatXmlResponse
+        {
+            public string? NomArchivo { get; set; }
+            public string? ValArchivo { get; set; }
         }
 
         /// <summary>
