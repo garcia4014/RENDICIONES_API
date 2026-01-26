@@ -317,6 +317,9 @@ namespace ContabilidadAPI.Controllers
                                 // Limpiar saltos de línea de todos los campos
                                 CleanLineBreaks(extractorResult);
                                 
+                                // Sumarizar montos de afectación
+                                SumarizarMontosAfectacion(extractorResult);
+                                
                                 return Ok(extractorResult);
                             }
                             else
@@ -350,6 +353,9 @@ namespace ContabilidadAPI.Controllers
 
                 // Limpiar saltos de línea de todos los campos
                 CleanLineBreaks(resultOcr);
+                
+                // Sumarizar montos de afectación
+                SumarizarMontosAfectacion(resultOcr);
 
                 return Ok(resultOcr);
             }
@@ -634,6 +640,58 @@ namespace ContabilidadAPI.Controllers
 
             // Eliminar espacios al inicio y al final
             return text.Trim();
+        }
+
+        /// <summary>
+        /// Sumariza los montos de cada tipo de afectación del IGV, dejando solo un total por cada array
+        /// </summary>
+        /// <param name="result">Resultado del extractor de comprobantes</param>
+        private void SumarizarMontosAfectacion(ComprobanteExtractorResult result)
+        {
+            if (result == null) return;
+
+            // Sumarizar Montos Gravados
+            result.MontosGravados = SumarArray(result.MontosGravados);
+
+            // Sumarizar Montos Inafectos
+            result.MontosInafectos = SumarArray(result.MontosInafectos);
+
+            // Sumarizar Montos Exonerados
+            result.MontosExonerados = SumarArray(result.MontosExonerados);
+
+            // Sumarizar Montos IGV Especial
+            result.MontosIgvEspecial = SumarArray(result.MontosIgvEspecial);
+
+            // Sumarizar Montos Impuesto Consumo
+            result.MontosImpuestoConsumo = SumarArray(result.MontosImpuestoConsumo);
+        }
+
+        /// <summary>
+        /// Suma todos los valores de un array de strings numéricos y retorna un array con un solo elemento (la suma total)
+        /// </summary>
+        /// <param name="valores">Array de valores numéricos en formato string</param>
+        /// <returns>Array con un solo elemento que contiene la suma total, o array vacío si no hay valores</returns>
+        private List<string> SumarArray(List<string> valores)
+        {
+            if (valores == null || valores.Count == 0)
+                return new List<string>();
+
+            decimal suma = 0;
+            foreach (var valor in valores)
+            {
+                if (decimal.TryParse(valor, System.Globalization.NumberStyles.Any, 
+                    System.Globalization.CultureInfo.InvariantCulture, out decimal numero))
+                {
+                    suma += numero;
+                }
+            }
+
+            // Si la suma es 0, retornar array vacío
+            if (suma == 0)
+                return new List<string>();
+
+            // Retornar array con un solo elemento: la suma formateada con 2 decimales
+            return new List<string> { suma.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) };
         }
 
     }
