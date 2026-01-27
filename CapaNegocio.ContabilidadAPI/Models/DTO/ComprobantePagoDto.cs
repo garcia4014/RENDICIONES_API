@@ -174,7 +174,8 @@ namespace CapaNegocio.ContabilidadAPI.Models.DTO
         public string? Notas { get; set; }
         
         [StringLength(10, ErrorMessage = "La placa vehicular no puede exceder 10 caracteres")]
-        [RegularExpression(@"^[A-HJ-NP-Z]{3}-\d{3}$", ErrorMessage = "Formato de placa inválido. Use ABC-123")]
+        [RegularExpression(@"^[A-Z0-9]{2,4}-[A-Z0-9]{2,4}$",
+ ErrorMessage = "Formato de placa inválido. Use formato con guion (Ej: ABC-123, AK1-213)")]
         public string? PlacaVehicular { get; set; }
         
         public string? Extension { get; set; }
@@ -288,7 +289,8 @@ namespace CapaNegocio.ContabilidadAPI.Models.DTO
         /// Placa vehicular (para gastos relacionados al vehículo)
         /// </summary>
         [StringLength(10, ErrorMessage = "La placa vehicular no puede exceder 10 caracteres")]
-        [RegularExpression(@"^[A-HJ-NP-Z]{3}-\d{3}$",ErrorMessage = "Formato de placa inválido. Use ABC-123")]
+        [RegularExpression(@"^[A-Z0-9]{2,4}-[A-Z0-9]{2,4}$",
+ ErrorMessage = "Formato de placa inválido. Use formato con guion (Ej: ABC-123, AK1-213)")]
         public string? PlacaVehicular { get; set; }
         
         public string? Extension { get; set; }
