@@ -660,25 +660,110 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
 
                 // Configurar request
                 _logger.LogInformation("PASO 4: Configurando headers y realizando petición HTTP GET...");
-                var request = new HttpRequestMessage(HttpMethod.Get, url);
-                request.Headers.Add("Accept", "application/json, text/plain, */*");
-                // NO agregar Accept-Encoding manualmente - HttpClient maneja la descompresión automática
-                request.Headers.Add("Accept-Language", "es,es-ES;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6,es-PE;q=0.5");
-                request.Headers.Add("Origin", "https://e-factura.sunat.gob.pe");
-                request.Headers.Add("Referer", "https://e-factura.sunat.gob.pe/");
-                request.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 Edg/144.0.0.0");
-                request.Headers.Add("Authorization", $"Bearer {token}");
-
-                var response = await _httpClient.SendAsync(request);
-
-                if (!response.IsSuccessStatusCode)
+                
+                // Política de reintentos: 3 intentos con delays crecientes (1s, 2s, 4s)
+                const int maxRetries = 3;
+                HttpResponseMessage? response = null;
+                Exception? lastException = null;
+                
+                for (int attempt = 1; attempt <= maxRetries; attempt++)
                 {
-                    var errorContent = await response.Content.ReadAsStringAsync();
-                    _logger.LogWarning("Error al consultar SUNAT: {StatusCode} - {Error}", response.StatusCode, errorContent);
+                    try
+                    {
+                        var request = new HttpRequestMessage(HttpMethod.Get, url);
+                        request.Headers.Add("Accept", "application/json, text/plain, */*");
+                        // NO agregar Accept-Encoding manualmente - HttpClient maneja la descompresión automática
+                        request.Headers.Add("Accept-Language", "es,es-ES;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6,es-PE;q=0.5");
+                        request.Headers.Add("Origin", "https://e-factura.sunat.gob.pe");
+                        request.Headers.Add("Referer", "https://e-factura.sunat.gob.pe/");
+                        request.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 Edg/144.0.0.0");
+                        request.Headers.Add("Authorization", $"Bearer {token}");
+
+                        if (attempt > 1)
+                        {
+                            _logger.LogInformation("Intento {Attempt} de {MaxRetries} para consultar SUNAT...", attempt, maxRetries);
+                        }
+
+                        response = await _httpClient.SendAsync(request);
+
+                        if (response.IsSuccessStatusCode)
+                        {
+                            _logger.LogInformation("Respuesta HTTP exitosa: {StatusCode}", response.StatusCode);
+                            break; // Éxito, salir del loop
+                        }
+                        else
+                        {
+                            var errorContent = await response.Content.ReadAsStringAsync();
+                            
+                            // Si es un error 500 (servidor) o 503 (servicio no disponible), reintentar
+                            if ((response.StatusCode == System.Net.HttpStatusCode.InternalServerError || 
+                                 response.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable ||
+                                 response.StatusCode == System.Net.HttpStatusCode.BadGateway) && 
+                                attempt < maxRetries)
+                            {
+                                var delaySeconds = Math.Pow(2, attempt - 1); // 1s, 2s, 4s
+                                _logger.LogWarning("Error temporal en SUNAT (intento {Attempt}/{MaxRetries}): {StatusCode} - {Error}. Reintentando en {Delay} segundos...", 
+                                    attempt, maxRetries, response.StatusCode, errorContent, delaySeconds);
+                                await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
+                                continue; // Reintentar
+                            }
+                            else
+                            {
+                                // Error no recuperable o último intento
+                                _logger.LogWarning("Error al consultar SUNAT (intento {Attempt}/{MaxRetries}): {StatusCode} - {Error}", 
+                                    attempt, maxRetries, response.StatusCode, errorContent);
+                                
+                                if (attempt == maxRetries)
+                                {
+                                    return null; // Todos los intentos fallaron
+                                }
+                            }
+                        }
+                    }
+                    catch (HttpRequestException httpEx)
+                    {
+                        lastException = httpEx;
+                        
+                        if (attempt < maxRetries)
+                        {
+                            var delaySeconds = Math.Pow(2, attempt - 1); // 1s, 2s, 4s
+                            _logger.LogWarning(httpEx, "Excepción HTTP en SUNAT (intento {Attempt}/{MaxRetries}). Reintentando en {Delay} segundos...", 
+                                attempt, maxRetries, delaySeconds);
+                            await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
+                            continue; // Reintentar
+                        }
+                        else
+                        {
+                            _logger.LogError(httpEx, "Error HTTP al consultar SUNAT después de {MaxRetries} intentos", maxRetries);
+                            return null;
+                        }
+                    }
+                    catch (TaskCanceledException tcEx)
+                    {
+                        lastException = tcEx;
+                        
+                        if (attempt < maxRetries)
+                        {
+                            var delaySeconds = Math.Pow(2, attempt - 1);
+                            _logger.LogWarning(tcEx, "Timeout en SUNAT (intento {Attempt}/{MaxRetries}). Reintentando en {Delay} segundos...", 
+                                attempt, maxRetries, delaySeconds);
+                            await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
+                            continue; // Reintentar
+                        }
+                        else
+                        {
+                            _logger.LogError(tcEx, "Timeout en SUNAT después de {MaxRetries} intentos", maxRetries);
+                            return null;
+                        }
+                    }
+                }
+
+                // Si después de todos los intentos no hay respuesta exitosa
+                if (response == null || !response.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning("No se pudo obtener respuesta exitosa de SUNAT después de {MaxRetries} intentos", maxRetries);
                     return null;
                 }
-                
-                _logger.LogInformation("Respuesta HTTP exitosa: {StatusCode}", response.StatusCode);
 
                 _logger.LogInformation("PASO 5: Procesando respuesta JSON...");
                 var jsonResponse = await response.Content.ReadAsStringAsync();

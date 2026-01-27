@@ -348,9 +348,11 @@ namespace CapaDatos.ContabilidadAPI.Models
                         
                         var taxExemptionReasonCode = taxCategory?.Element(cbc + "TaxExemptionReasonCode")?.Value;
                         var taxableAmount = taxSubtotal.Element(cbc + "TaxableAmount")?.Value;
+                        var taxPercent = taxCategory?.Element(cbc + "Percent")?.Value;
                         
                         Console.WriteLine($"[XML] TaxExemptionReasonCode: {taxExemptionReasonCode ?? "NULL"}");
                         Console.WriteLine($"[XML] TaxableAmount: {taxableAmount ?? "NULL"}");
+                        Console.WriteLine($"[XML] TaxPercent: {taxPercent ?? "NULL"}");
                         
                         // Verificar si es ISC por TaxScheme
                         var taxScheme = taxCategory?.Element(cac + "TaxScheme");
@@ -371,7 +373,7 @@ namespace CapaDatos.ContabilidadAPI.Models
                             }
                             
                             // Códigos SUNAT para IGV:
-                            // 10 = Gravado - Operación Onerosa
+                            // 10 = Gravado - Operación Onerosa (puede ser 18% o 10%)
                             // 20 = Exonerado - Operación Onerosa
                             // 30 = Inafecto - Operación Onerosa
                             // 17 = Gravado - IVAP (IGV Especial 10%)
@@ -379,9 +381,37 @@ namespace CapaDatos.ContabilidadAPI.Models
                             
                             switch (taxExemptionReasonCode)
                             {
-                                case "10": // Gravado
-                                    Console.WriteLine($"[XML] Gravado detectado: {taxableAmount}");
-                                    result.MontosGravados.Add(taxableAmount);
+                                case "10": // Gravado - VALIDAR PORCENTAJE
+                                    // Verificar el porcentaje para clasificar correctamente
+                                    if (!string.IsNullOrEmpty(taxPercent))
+                                    {
+                                        if (decimal.TryParse(taxPercent, System.Globalization.NumberStyles.Any, 
+                                            System.Globalization.CultureInfo.InvariantCulture, out decimal percent))
+                                        {
+                                            if (percent == 10 || percent == 10.0m)
+                                            {
+                                                Console.WriteLine($"[XML] IGV Especial (10%) detectado: {taxableAmount}");
+                                                result.MontosIgvEspecial.Add(taxableAmount);
+                                            }
+                                            else // 18% u otro porcentaje se considera gravado normal
+                                            {
+                                                Console.WriteLine($"[XML] Gravado ({percent}%) detectado: {taxableAmount}");
+                                                result.MontosGravados.Add(taxableAmount);
+                                            }
+                                        }
+                                        else
+                                        {
+                                            // Si no se puede parsear, asumir gravado normal
+                                            Console.WriteLine($"[XML] Gravado (% no parseable) detectado: {taxableAmount}");
+                                            result.MontosGravados.Add(taxableAmount);
+                                        }
+                                    }
+                                    else
+                                    {
+                                        // Si no hay porcentaje, asumir gravado normal (18%)
+                                        Console.WriteLine($"[XML] Gravado (sin % especificado, asumiendo 18%) detectado: {taxableAmount}");
+                                        result.MontosGravados.Add(taxableAmount);
+                                    }
                                     afectacionDetectada = true;
                                     break;
                                 case "20": // Exonerado
@@ -394,8 +424,8 @@ namespace CapaDatos.ContabilidadAPI.Models
                                     result.MontosInafectos.Add(taxableAmount);
                                     afectacionDetectada = true;
                                     break;
-                                case "17": // IGV Especial (IVAP)
-                                    Console.WriteLine($"[XML] IGV Especial detectado: {taxableAmount}");
+                                case "17": // IGV Especial (IVAP) - siempre 10%
+                                    Console.WriteLine($"[XML] IGV Especial (código 17) detectado: {taxableAmount}");
                                     result.MontosIgvEspecial.Add(taxableAmount);
                                     afectacionDetectada = true;
                                     break;
@@ -435,20 +465,48 @@ namespace CapaDatos.ContabilidadAPI.Models
                             var lineTaxCategory = lineTaxSubtotal.Element(cac + "TaxCategory");
                             var lineTaxExemptionReasonCode = lineTaxCategory?.Element(cbc + "TaxExemptionReasonCode")?.Value;
                             var lineTaxableAmount = lineTaxSubtotal.Element(cbc + "TaxableAmount")?.Value;
+                            var lineTaxPercent = lineTaxCategory?.Element(cbc + "Percent")?.Value;
                             
                             Console.WriteLine($"[XML-LINE] TaxExemptionReasonCode: {lineTaxExemptionReasonCode ?? "NULL"}");
                             Console.WriteLine($"[XML-LINE] TaxableAmount: {lineTaxableAmount ?? "NULL"}");
+                            Console.WriteLine($"[XML-LINE] TaxPercent: {lineTaxPercent ?? "NULL"}");
                             
                             if (!string.IsNullOrEmpty(lineTaxableAmount) && !string.IsNullOrEmpty(lineTaxExemptionReasonCode))
                             {
                                 // Sumar el monto al tipo correspondiente (evitar duplicados)
                                 switch (lineTaxExemptionReasonCode)
                                 {
-                                    case "10": // Gravado
-                                        if (!result.MontosGravados.Contains(lineTaxableAmount))
+                                    case "10": // Gravado - VALIDAR PORCENTAJE
+                                        if (!result.MontosGravados.Contains(lineTaxableAmount) && !result.MontosIgvEspecial.Contains(lineTaxableAmount))
                                         {
-                                            Console.WriteLine($"[XML-LINE] Gravado detectado: {lineTaxableAmount}");
-                                            result.MontosGravados.Add(lineTaxableAmount);
+                                            // Verificar el porcentaje para clasificar correctamente
+                                            if (!string.IsNullOrEmpty(lineTaxPercent))
+                                            {
+                                                if (decimal.TryParse(lineTaxPercent, System.Globalization.NumberStyles.Any, 
+                                                    System.Globalization.CultureInfo.InvariantCulture, out decimal linePercent))
+                                                {
+                                                    if (linePercent == 10 || linePercent == 10.0m)
+                                                    {
+                                                        Console.WriteLine($"[XML-LINE] IGV Especial (10%) detectado: {lineTaxableAmount}");
+                                                        result.MontosIgvEspecial.Add(lineTaxableAmount);
+                                                    }
+                                                    else // 18% u otro porcentaje
+                                                    {
+                                                        Console.WriteLine($"[XML-LINE] Gravado ({linePercent}%) detectado: {lineTaxableAmount}");
+                                                        result.MontosGravados.Add(lineTaxableAmount);
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    Console.WriteLine($"[XML-LINE] Gravado (% no parseable) detectado: {lineTaxableAmount}");
+                                                    result.MontosGravados.Add(lineTaxableAmount);
+                                                }
+                                            }
+                                            else
+                                            {
+                                                Console.WriteLine($"[XML-LINE] Gravado (sin %, asumiendo 18%) detectado: {lineTaxableAmount}");
+                                                result.MontosGravados.Add(lineTaxableAmount);
+                                            }
                                             afectacionDetectada = true;
                                         }
                                         break;
@@ -468,10 +526,10 @@ namespace CapaDatos.ContabilidadAPI.Models
                                             afectacionDetectada = true;
                                         }
                                         break;
-                                    case "17": // IGV Especial (IVAP)
+                                    case "17": // IGV Especial (IVAP) - siempre 10%
                                         if (!result.MontosIgvEspecial.Contains(lineTaxableAmount))
                                         {
-                                            Console.WriteLine($"[XML-LINE] IGV Especial detectado: {lineTaxableAmount}");
+                                            Console.WriteLine($"[XML-LINE] IGV Especial (código 17) detectado: {lineTaxableAmount}");
                                             result.MontosIgvEspecial.Add(lineTaxableAmount);
                                             afectacionDetectada = true;
                                         }
