@@ -209,7 +209,7 @@ Integración con los servicios de SUNAT para validar comprobantes:
 ### Backend Framework
 - **.NET 8.0** (C#)
 - **ASP.NET Core Web API**
-- **Entity Framework Core 9.0.2** (ORM)
+- **Entity Framework Core** (ORM)
 
 ### Base de Datos
 - **Microsoft SQL Server**
@@ -531,7 +531,7 @@ RENDICIONES_API/
    {
      "usuarioId": 123,
      "descripcion": "Viaje a Lima",
-     "fechaSolicitud": "2024-01-15"
+     "fechaSolicitud": "2025-01-27"
    }
    ```
 
@@ -651,7 +651,7 @@ RENDICIONES_API/
 - [ ] Integración con bancos para validación de pagos
 
 ### Técnicas
-- [ ] Migración a .NET 9.0
+- [ ] Migración a versiones más recientes de .NET
 - [ ] Implementación de CQRS
 - [ ] Event Sourcing para auditoría
 - [ ] Redis para caché
@@ -678,7 +678,7 @@ RENDICIONES_API/
 | Tecnología | Versión | Propósito |
 |------------|---------|-----------|
 | .NET | 8.0 | Framework principal |
-| Entity Framework Core | 9.0.2 | ORM |
+| Entity Framework Core | 9.0.x/10.0.x | ORM |
 | SQL Server | - | Base de datos |
 | JWT | 8.0.13 | Autenticación |
 | Hangfire | 1.8.22 | Tareas en segundo plano |
@@ -705,6 +705,6 @@ El sistema está diseñado para ser **escalable**, **mantenible** y **extensible
 
 ---
 
-**Fecha de última actualización:** 2024  
+**Fecha de última actualización:** Enero 2025  
 **Equipo de Desarrollo:** Movitec Development Team  
 **Mantenedor:** garcia4014
