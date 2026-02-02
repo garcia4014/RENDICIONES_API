@@ -14,6 +14,7 @@ using CapaNegocio.ContabilidadAPI.Repository.Implementation.Access;
 using CapaNegocio.ContabilidadAPI.Repository.Interfaces;
 using CapaNegocio.ContabilidadAPI.Repository.Interfaces.Access;
 using CapaNegocio.ContabilidadAPI.Extensions;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -264,6 +265,9 @@ builder.Services.AddScoped<INotificacionesService, NotificacionesServiceImpl>();
 builder.Services.AddScoped<IPersonalService, PersonalServiceImpl>();
 builder.Services.AddScoped<IUsuarioTipoPersonaService, UsuarioTipoPersonaServiceImpl>();
 
+// Background Service para procesar comprobantes no desglosados
+builder.Services.AddScoped<ComprobanteDesglosadoBackgroundService>();
+
 // Configurar Hangfire con SQL Server
 builder.Services.AddHangfire(configuration => configuration
     .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
@@ -386,6 +390,14 @@ app.UseHangfireDashboard("/hangfire", new DashboardOptions
     DashboardTitle = "Contabilidad API - Background Jobs",
     Authorization = new[] { new HangfireAuthorizationFilter() }
 });
+
+// Configurar Job Recurrente: Procesar comprobantes no desglosados cada 5 minutos
+RecurringJob.AddOrUpdate<ComprobanteDesglosadoBackgroundService>(
+    "procesar-comprobantes-no-desglosados",
+    service => service.ProcesarComprobantesNoDesglosados(),
+    "*/5 * * * *"); // Cada 5 minutos
+
+Log.Information("Background Job configurado: 'procesar-comprobantes-no-desglosados' ejecutándose cada 5 minutos");
 
 // Middleware para manejo de errores en producción
 if (!app.Environment.IsDevelopment())

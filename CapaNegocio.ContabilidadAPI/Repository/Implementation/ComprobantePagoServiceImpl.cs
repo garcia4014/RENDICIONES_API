@@ -270,6 +270,10 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
 
                 var comprobante = _mapper.Map<ComprobantePago>(createDto);
                 
+                // Desglosado viene desde el frontend basado en la respuesta del OCR (afectacionIgvDetectada)
+                // No se recalcula, solo se usa el valor recibido
+                comprobante.Desglosado = createDto.Desglosado ?? false;
+                
                 // Calcular IGV total basándose en los montos específicos
                 decimal igvGravado = (comprobante.MontoGravado ?? 0) * 0.18m;
                 decimal igvEspecial = (comprobante.MontoIgvEspecial ?? 0) * 0.10m;
@@ -376,6 +380,10 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                 var comprobante = _mapper.Map<ComprobantePago>(updateDto);
                 comprobante.Ruta = comprobanteExistente.Ruta;
                 comprobante.ValidoSunat = false;
+                
+                // Desglosado viene desde el frontend basado en la respuesta del OCR (afectacionIgvDetectada)
+                // No se recalcula, solo se usa el valor recibido
+                comprobante.Desglosado = updateDto.Desglosado ?? false;
                 
                 // Calcular IGV total basándose en los montos específicos
                 decimal igvGravado = (comprobante.MontoGravado ?? 0) * 0.18m;

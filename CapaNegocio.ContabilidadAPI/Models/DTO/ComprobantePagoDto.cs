@@ -132,6 +132,7 @@ namespace CapaNegocio.ContabilidadAPI.Models.DTO
         public decimal? MontoGravado { get; set; } = 0m;
         public decimal? MontoOtrosCargos { get; set; } = 0m;
         public int? IgvPorcentaje { get; set; }
+        public bool? Desglosado { get; set; } = false;
 
 
     }
@@ -193,6 +194,7 @@ namespace CapaNegocio.ContabilidadAPI.Models.DTO
         public decimal? Igv { get; set; } = 0m;
         public decimal? Subtotal { get; set; } = 0m;
         public int? IgvPorcentaje { get; set; }
+        public bool? Desglosado { get; set; } = false;
 
         /// <summary>
         /// ID del tipo de gasto asociado
@@ -306,6 +308,7 @@ namespace CapaNegocio.ContabilidadAPI.Models.DTO
         public decimal? MontoGravado { get; set; } = 0m;
         public decimal? MontoOtrosCargos { get; set; } = 0m;
         public int? IgvPorcentaje { get; set; }
+        public bool? Desglosado { get; set; } = false;
 
         /// <summary>
         /// ID del tipo de gasto asociado

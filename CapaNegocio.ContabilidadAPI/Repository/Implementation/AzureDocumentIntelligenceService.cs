@@ -605,6 +605,8 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                     else
                     {
                         _logger.LogWarning("No se pudo obtener XML desde SUNAT, usando valores extraídos por Azure");
+                        // Si no se obtuvo XML de SUNAT, establecer AfectacionIgvDetectada en false
+                        result.AfectacionIgvDetectada = false;
                     }
                 }
                 else
@@ -613,11 +615,15 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                         result.Rucs.FirstOrDefault() ?? "NULL",
                         result.Series.FirstOrDefault() ?? "NULL",
                         result.Correlativos.FirstOrDefault() ?? "NULL");
+                    // Si no se puede consultar SUNAT por falta de datos, establecer AfectacionIgvDetectada en false
+                    result.AfectacionIgvDetectada = false;
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al convertir respuesta de Azure a ComprobanteExtractorResult");
+                // En caso de error, establecer AfectacionIgvDetectada en false
+                result.AfectacionIgvDetectada = false;
             }
 
             return result;
@@ -661,8 +667,9 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                 // Configurar request
                 _logger.LogInformation("PASO 4: Configurando headers y realizando petición HTTP GET...");
                 
-                // Política de reintentos: 3 intentos con delays crecientes (1s, 2s, 4s)
-                const int maxRetries = 3;
+                // Política de reintentos: 5 intentos con delays crecientes (1s, 2s, 4s, 8s, 16s)
+                // Excepción: Si el error es Unauthorized (401), no se reintenta
+                const int maxRetries = 5;
                 HttpResponseMessage? response = null;
                 Exception? lastException = null;
                 
@@ -695,13 +702,21 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                         {
                             var errorContent = await response.Content.ReadAsStringAsync();
                             
+                            // Si es Unauthorized (401), no reintentar - es un error de autenticación
+                            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                            {
+                                _logger.LogWarning("Error de autenticación en SUNAT (intento {Attempt}/{MaxRetries}): {StatusCode} - {Error}. No se reintentará.", 
+                                    attempt, maxRetries, response.StatusCode, errorContent);
+                                return null; // Salir inmediatamente sin reintentar
+                            }
+                            
                             // Si es un error 500 (servidor) o 503 (servicio no disponible), reintentar
                             if ((response.StatusCode == System.Net.HttpStatusCode.InternalServerError || 
                                  response.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable ||
                                  response.StatusCode == System.Net.HttpStatusCode.BadGateway) && 
                                 attempt < maxRetries)
                             {
-                                var delaySeconds = Math.Pow(2, attempt - 1); // 1s, 2s, 4s
+                                var delaySeconds = Math.Pow(2, attempt - 1); // 1s, 2s, 4s, 8s, 16s
                                 _logger.LogWarning("Error temporal en SUNAT (intento {Attempt}/{MaxRetries}): {StatusCode} - {Error}. Reintentando en {Delay} segundos...", 
                                     attempt, maxRetries, response.StatusCode, errorContent, delaySeconds);
                                 await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
@@ -726,7 +741,7 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                         
                         if (attempt < maxRetries)
                         {
-                            var delaySeconds = Math.Pow(2, attempt - 1); // 1s, 2s, 4s
+                            var delaySeconds = Math.Pow(2, attempt - 1); // 1s, 2s, 4s, 8s, 16s
                             _logger.LogWarning(httpEx, "Excepción HTTP en SUNAT (intento {Attempt}/{MaxRetries}). Reintentando en {Delay} segundos...", 
                                 attempt, maxRetries, delaySeconds);
                             await Task.Delay(TimeSpan.FromSeconds(delaySeconds));

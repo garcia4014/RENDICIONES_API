@@ -127,6 +127,9 @@ namespace CapaDatos.ContabilidadAPI.Models
         [Column("IGVPorcentaje")]
         public int? IgvPorcentaje { get; set; }
 
+        [Column("DESGLOSADO")]
+        public bool? Desglosado { get; set; } = false;
+
         [ForeignKey("SvIdCabecera")]
         [JsonIgnore]
         public virtual SviaticosCabecera? SviaticosCabecera { get; set; }

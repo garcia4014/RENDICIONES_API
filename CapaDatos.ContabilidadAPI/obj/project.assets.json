@@ -4060,23 +4060,23 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\egarcieg\\.nuget\\packages\\": {},
+    "C:\\Users\\dell\\.nuget\\packages\\": {},
     "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "c:\\movitec\\RENDICIONES_API\\CapaDatos.ContabilidadAPI\\CapaDatos.ContabilidadAPI.csproj",
+      "projectUniqueName": "C:\\movitecnica\\RENDICIONES_API\\CapaDatos.ContabilidadAPI\\CapaDatos.ContabilidadAPI.csproj",
       "projectName": "CapaDatos.ContabilidadAPI",
-      "projectPath": "c:\\movitec\\RENDICIONES_API\\CapaDatos.ContabilidadAPI\\CapaDatos.ContabilidadAPI.csproj",
-      "packagesPath": "C:\\Users\\egarcieg\\.nuget\\packages\\",
-      "outputPath": "c:\\movitec\\RENDICIONES_API\\CapaDatos.ContabilidadAPI\\obj\\",
+      "projectPath": "C:\\movitecnica\\RENDICIONES_API\\CapaDatos.ContabilidadAPI\\CapaDatos.ContabilidadAPI.csproj",
+      "packagesPath": "C:\\Users\\dell\\.nuget\\packages\\",
+      "outputPath": "C:\\movitecnica\\RENDICIONES_API\\CapaDatos.ContabilidadAPI\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
       ],
       "configFilePaths": [
-        "C:\\Users\\egarcieg\\AppData\\Roaming\\NuGet\\NuGet.Config",
+        "C:\\Users\\dell\\AppData\\Roaming\\NuGet\\NuGet.Config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
       ],
@@ -4141,26 +4141,12 @@
         ],
         "assetTargetFallback": true,
         "warn": true,
-        "downloadDependencies": [
-          {
-            "name": "Microsoft.AspNetCore.App.Ref",
-            "version": "[8.0.22, 8.0.22]"
-          },
-          {
-            "name": "Microsoft.NETCore.App.Ref",
-            "version": "[8.0.22, 8.0.22]"
-          },
-          {
-            "name": "Microsoft.WindowsDesktop.App.Ref",
-            "version": "[8.0.22, 8.0.22]"
-          }
-        ],
         "frameworkReferences": {
           "Microsoft.NETCore.App": {
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.100/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.102/PortableRuntimeIdentifierGraph.json"
       }
     }
   }
