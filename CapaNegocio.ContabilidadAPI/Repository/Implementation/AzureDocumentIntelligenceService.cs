@@ -488,11 +488,11 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                         _logger.LogInformation("InvoiceId encontrado: {InvoiceId}", invoiceIdValue);
                         
                         // Formato peruano: SERIE-CORRELATIVO o SERIE CORRELATIVO
-                        // Serie: hasta 4 caracteres alfanuméricos (ej: B206, F001, EB01, E001)
-                        // Correlativo: hasta 8 dígitos
+                        // Serie: hasta 4 caracteres alfanuméricos (ej: B206, F001, EB01, E001, F441)
+                        // Correlativo: hasta 10 dígitos (para soportar más variaciones)
                         var match = System.Text.RegularExpressions.Regex.Match(
                             invoiceIdValue, 
-                            @"^([A-Z]+[0-9]{0,3})[\s\-:\.]*(\d{1,8})$",
+                            @"^([A-Z]+[0-9]{0,3})[\s\-:\.]*(\d{1,10})$",
                             System.Text.RegularExpressions.RegexOptions.IgnoreCase);
                         
                         if (match.Success && match.Groups.Count >= 3)
@@ -518,7 +518,7 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                             
                             // Intentar encontrar serie y correlativo por separado en el texto
                             var serieMatch = System.Text.RegularExpressions.Regex.Match(invoiceIdValue, @"([A-Z]+[0-9]{0,3})");
-                            var corrMatch = System.Text.RegularExpressions.Regex.Match(invoiceIdValue, @"(\d{1,8})");
+                            var corrMatch = System.Text.RegularExpressions.Regex.Match(invoiceIdValue, @"(\d{1,10})");
                             
                             if (serieMatch.Success)
                             {
