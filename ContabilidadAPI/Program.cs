@@ -177,6 +177,14 @@ builder.Services.AddCors(options =>
                                 .AllowAnyMethod()
                                 .AllowCredentials(); // Habilita cookies o tokens en requests
                       });
+    
+    // Política pública para endpoints de archivos (PDF, etc.) - permite cualquier origen
+    options.AddPolicy("PublicFiles", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
 });
 
 

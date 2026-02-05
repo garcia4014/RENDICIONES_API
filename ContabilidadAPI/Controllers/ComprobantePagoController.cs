@@ -4,6 +4,7 @@ using CapaNegocio.ContabilidadAPI.Models;
 using CapaNegocio.ContabilidadAPI.Models.DTO;
 using CapaNegocio.ContabilidadAPI.Repository.Interfaces;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel.DataAnnotations;
 using Hangfire;
@@ -458,6 +459,7 @@ namespace ContabilidadAPI.Controllers
         /// <returns>Archivo PDF del comprobante</returns>
         [HttpGet("{id}/pdf")]
         [AllowAnonymous] // Endpoint público
+        [EnableCors("PublicFiles")] // Permitir cualquier origen para archivos
         [ProducesResponseType(typeof(FileResult), 200)]
         [ProducesResponseType(404)]
         [ProducesResponseType(500)]
