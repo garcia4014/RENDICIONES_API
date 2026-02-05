@@ -378,7 +378,29 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                 }
 
                 var comprobante = _mapper.Map<ComprobantePago>(updateDto);
-                comprobante.Ruta = comprobanteExistente.Ruta;
+                
+                // Verificar si cambiaron los datos clave del comprobante (Serie, Correlativo, RUC)
+                bool datosClaveCambiaron = 
+                    comprobanteExistente.Serie != updateDto.Serie ||
+                    comprobanteExistente.Correlativo != updateDto.Correlativo ||
+                    comprobanteExistente.Ruc != updateDto.Ruc ||
+                    comprobanteExistente.Monto != updateDto.Monto;
+                
+                if (datosClaveCambiaron)
+                {
+                    // Si cambiaron los datos clave, limpiar la ruta para que se busque el nuevo PDF
+                    comprobante.Ruta = null;
+                    comprobante.PdfSunat = false;
+                    comprobante.ReintentosPdfSunat = 0;
+                }
+                else
+                {
+                    // Mantener la ruta existente si no cambiaron los datos clave
+                    comprobante.Ruta = comprobanteExistente.Ruta;
+                    comprobante.PdfSunat = comprobanteExistente.PdfSunat;
+                    comprobante.ReintentosPdfSunat = comprobanteExistente.ReintentosPdfSunat;
+                }
+                
                 comprobante.ValidoSunat = false;
                 
                 // Desglosado viene desde el frontend basado en la respuesta del OCR (afectacionIgvDetectada)

@@ -654,9 +654,9 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                 var token = parametro.Valor;
                 _logger.LogInformation("Token SUNAT obtenido exitosamente (longitud: {Length} caracteres)", token.Length);
 
-                // Determinar tipo de comprobante por la serie
+                // Determinar tipo de comprobante por la serie y asegurar 2 dígitos (01, 03, 07, etc.)
                 _logger.LogInformation("PASO 2: Determinando tipo de comprobante por serie '{Serie}'...", serie);
-                string tipoComprobante = DeterminarTipoComprobante(serie);
+                string tipoComprobante = DeterminarTipoComprobante(serie).PadLeft(2, '0');
                 _logger.LogInformation("Tipo de comprobante determinado: {Tipo}", tipoComprobante);
 
                 // Construir URL

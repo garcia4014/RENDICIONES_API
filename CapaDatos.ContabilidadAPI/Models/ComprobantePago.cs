@@ -130,6 +130,12 @@ namespace CapaDatos.ContabilidadAPI.Models
         [Column("DESGLOSADO")]
         public bool? Desglosado { get; set; } = false;
 
+        [Column("PDF_SUNAT")]
+        public bool? PdfSunat { get; set; } = false;
+
+        [Column("REINTENTOS_PDF_SUNAT")]
+        public int? ReintentosPdfSunat { get; set; } = 0;
+
         [ForeignKey("SvIdCabecera")]
         [JsonIgnore]
         public virtual SviaticosCabecera? SviaticosCabecera { get; set; }
