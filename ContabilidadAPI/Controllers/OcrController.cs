@@ -5,6 +5,11 @@ using CapaNegocio.ContabilidadAPI.Repository.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PdfSharp.BigGustave;
+using CapaDatos.ContabilidadAPI;
+using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
+using System.IO.Compression;
+using System.Text;
 
 namespace ContabilidadAPI.Controllers
 {
@@ -15,15 +20,22 @@ namespace ContabilidadAPI.Controllers
         private readonly IOcrService _ocrService;
         private readonly IAzureDocumentIntelligenceService _azureDocService;
         private readonly ILogger<OcrController> _logger;
+        private readonly SvrendicionesContext _dbContext;
+        private readonly HttpClient _httpClient;
 
         public OcrController(
             IOcrService ocrService,
             IAzureDocumentIntelligenceService azureDocService,
-            ILogger<OcrController> logger)
+            ILogger<OcrController> logger,
+            SvrendicionesContext dbContext,
+            IHttpClientFactory httpClientFactory)
         {
             _ocrService = ocrService;
             _azureDocService = azureDocService;
             _logger = logger;
+            _dbContext = dbContext;
+            _httpClient = httpClientFactory.CreateClient();
+            _httpClient.Timeout = TimeSpan.FromSeconds(60);
         }
 
         /// <summary>
@@ -578,6 +590,311 @@ namespace ContabilidadAPI.Controllers
         /// Limpia los saltos de línea de todos los campos del resultado
         /// </summary>
         /// <param name="result">Resultado del extractor de comprobantes</param>
+        /// <summary>
+        /// Obtiene datos del comprobante directamente desde SUNAT usando RUC, Serie, Correlativo y Tipo
+        /// </summary>
+        /// <param name="ruc">RUC del emisor</param>
+        /// <param name="serie">Serie del comprobante</param>
+        /// <param name="correlativo">Correlativo del comprobante</param>
+        /// <param name="tipoComprobante">Tipo de comprobante (01=Factura, 03=Boleta, etc.)</param>
+        /// <returns>Datos del comprobante en formato ComprobanteExtractorResult</returns>
+        [HttpGet("consultar-sunat")]
+        public async Task<IActionResult> ConsultarComprobanteSunat(
+            [FromQuery] string ruc,
+            [FromQuery] string serie,
+            [FromQuery] string correlativo,
+            [FromQuery] string? tipoComprobante = null)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(ruc) || string.IsNullOrWhiteSpace(serie) || string.IsNullOrWhiteSpace(correlativo))
+                {
+                    return BadRequest("Debe proporcionar RUC, Serie y Correlativo");
+                }
+
+                _logger.LogInformation("Consultando comprobante en SUNAT: RUC={Ruc}, Serie={Serie}, Correlativo={Correlativo}, Tipo={Tipo}",
+                    ruc, serie, correlativo, tipoComprobante);
+
+                // Si no se proporciona tipo, determinarlo por la serie
+                if (string.IsNullOrWhiteSpace(tipoComprobante))
+                {
+                    tipoComprobante = DeterminarTipoComprobantePorSerie(serie);
+                    _logger.LogInformation("Tipo de comprobante determinado automáticamente: {Tipo}", tipoComprobante);
+                }
+
+                // Obtener el XML desde SUNAT
+                var result = await ObtenerDatosComprobanteSunatAsync(ruc, serie, correlativo, tipoComprobante);
+
+                if (result == null)
+                {
+                    return NotFound(new { message = "No se pudo obtener el comprobante desde SUNAT. Verifique los datos o el token de autorización." });
+                }
+
+                // Limpiar saltos de línea
+                CleanLineBreaks(result);
+
+                // Sumarizar montos de afectación
+                SumarizarMontosAfectacion(result);
+
+                _logger.LogInformation("Comprobante obtenido exitosamente desde SUNAT");
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al consultar comprobante en SUNAT");
+                return StatusCode(500, new { message = "Error interno al consultar SUNAT", error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Obtiene datos del comprobante desde SUNAT consultando el XML
+        /// </summary>
+        private async Task<ComprobanteExtractorResult?> ObtenerDatosComprobanteSunatAsync(
+            string ruc, string serie, string correlativo, string tipoComprobante)
+        {
+            try
+            {
+                _logger.LogInformation("===== INICIO: Obtención XML desde SUNAT =====");
+                
+                // Asegurar que el tipo de comprobante tenga 2 dígitos (01, 03, 07, etc.)
+                tipoComprobante = tipoComprobante.PadLeft(2, '0');
+                
+                _logger.LogInformation("Parámetros: RUC={Ruc}, Serie={Serie}, Correlativo={Correlativo}, Tipo={Tipo}",
+                    ruc, serie, correlativo, tipoComprobante);
+
+                // Obtener token de autorización desde BD
+                _logger.LogInformation("PASO 1: Consultando token SUNAT en BD (PARAMETROS.Id=1)...");
+                var parametro = await _dbContext.Parametros
+                    .FirstOrDefaultAsync(p => p.Id == 1);
+
+                if (parametro == null || string.IsNullOrWhiteSpace(parametro.Valor))
+                {
+                    _logger.LogWarning("No se encontró el token SUNAT en la tabla PARAMETROS (Id=1)");
+                    return null;
+                }
+
+                var token = parametro.Valor;
+                _logger.LogInformation("Token SUNAT obtenido exitosamente (longitud: {Length} caracteres)", token.Length);
+
+                // Construir URL
+                _logger.LogInformation("PASO 2: Construyendo URL de consulta...");
+                var url = $"https://api-cpe.sunat.gob.pe/v1/contribuyente/consultacpe/comprobantes/{ruc}-{tipoComprobante}-{serie}-{correlativo}-2/02";
+                _logger.LogInformation("URL construida: {Url}", url);
+
+                // Configurar request con reintentos
+                _logger.LogInformation("PASO 3: Configurando headers y realizando petición HTTP GET...");
+                const int maxRetries = 5;
+                HttpResponseMessage? response = null;
+
+                for (int attempt = 1; attempt <= maxRetries; attempt++)
+                {
+                    try
+                    {
+                        var request = new HttpRequestMessage(HttpMethod.Get, url);
+                        request.Headers.Add("Accept", "application/json, text/plain, */*");
+                        request.Headers.Add("Accept-Language", "es,es-ES;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6,es-PE;q=0.5");
+                        request.Headers.Add("Origin", "https://e-factura.sunat.gob.pe");
+                        request.Headers.Add("Referer", "https://e-factura.sunat.gob.pe/");
+                        request.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 Edg/144.0.0.0");
+                        request.Headers.Add("Authorization", $"Bearer {token}");
+
+                        if (attempt > 1)
+                        {
+                            _logger.LogInformation("Intento {Attempt} de {MaxRetries} para consultar SUNAT...", attempt, maxRetries);
+                        }
+
+                        response = await _httpClient.SendAsync(request);
+
+                        if (response.IsSuccessStatusCode)
+                        {
+                            _logger.LogInformation("Respuesta HTTP exitosa: {StatusCode}", response.StatusCode);
+                            break;
+                        }
+                        else
+                        {
+                            var errorContent = await response.Content.ReadAsStringAsync();
+
+                            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                            {
+                                _logger.LogWarning("Error de autenticación en SUNAT: {StatusCode} - {Error}", response.StatusCode, errorContent);
+                                return null;
+                            }
+
+                            if ((response.StatusCode == System.Net.HttpStatusCode.InternalServerError ||
+                                 response.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable ||
+                                 response.StatusCode == System.Net.HttpStatusCode.BadGateway) &&
+                                attempt < maxRetries)
+                            {
+                                var delaySeconds = Math.Pow(2, attempt - 1);
+                                _logger.LogWarning("Error temporal en SUNAT (intento {Attempt}/{MaxRetries}): {StatusCode}. Reintentando en {Delay} segundos...",
+                                    attempt, maxRetries, response.StatusCode, delaySeconds);
+                                await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
+                                continue;
+                            }
+                            else
+                            {
+                                _logger.LogWarning("Error al consultar SUNAT (intento {Attempt}/{MaxRetries}): {StatusCode} - {Error}",
+                                    attempt, maxRetries, response.StatusCode, errorContent);
+
+                                if (attempt == maxRetries)
+                                {
+                                    return null;
+                                }
+                            }
+                        }
+                    }
+                    catch (HttpRequestException httpEx)
+                    {
+                        if (attempt < maxRetries)
+                        {
+                            var delaySeconds = Math.Pow(2, attempt - 1);
+                            _logger.LogWarning(httpEx, "Excepción HTTP en SUNAT (intento {Attempt}/{MaxRetries}). Reintentando en {Delay} segundos...",
+                                attempt, maxRetries, delaySeconds);
+                            await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
+                            continue;
+                        }
+                        else
+                        {
+                            _logger.LogError(httpEx, "Error HTTP al consultar SUNAT después de {MaxRetries} intentos", maxRetries);
+                            return null;
+                        }
+                    }
+                    catch (TaskCanceledException tcEx)
+                    {
+                        if (attempt < maxRetries)
+                        {
+                            var delaySeconds = Math.Pow(2, attempt - 1);
+                            _logger.LogWarning(tcEx, "Timeout en SUNAT (intento {Attempt}/{MaxRetries}). Reintentando en {Delay} segundos...",
+                                attempt, maxRetries, delaySeconds);
+                            await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
+                            continue;
+                        }
+                        else
+                        {
+                            _logger.LogError(tcEx, "Timeout en SUNAT después de {MaxRetries} intentos", maxRetries);
+                            return null;
+                        }
+                    }
+                }
+
+                if (response == null || !response.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning("No se pudo obtener respuesta exitosa de SUNAT después de {MaxRetries} intentos", maxRetries);
+                    return null;
+                }
+
+                _logger.LogInformation("PASO 4: Procesando respuesta JSON...");
+                var jsonResponse = await response.Content.ReadAsStringAsync();
+                _logger.LogInformation("JSON recibido (longitud: {Length} caracteres)", jsonResponse.Length);
+
+                var sunatResponse = JsonSerializer.Deserialize<SunatXmlResponse>(jsonResponse,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                if (sunatResponse == null || string.IsNullOrWhiteSpace(sunatResponse.ValArchivo))
+                {
+                    _logger.LogWarning("Respuesta de SUNAT vacía o sin valArchivo");
+                    return null;
+                }
+
+                _logger.LogInformation("Archivo recibido: {NomArchivo}, ValArchivo (Base64 longitud: {Length})",
+                    sunatResponse.NomArchivo, sunatResponse.ValArchivo?.Length ?? 0);
+
+                // Decodificar Base64 y extraer XML del ZIP
+                _logger.LogInformation("PASO 5: Decodificando Base64 y extrayendo XML del ZIP...");
+                var xmlContent = ExtraerXmlDeZip(sunatResponse.ValArchivo);
+
+                if (string.IsNullOrWhiteSpace(xmlContent))
+                {
+                    _logger.LogWarning("No se pudo extraer XML del archivo ZIP");
+                    return null;
+                }
+
+                _logger.LogInformation("XML extraído exitosamente (longitud: {Length} caracteres)", xmlContent.Length);
+                _logger.LogInformation("PASO 6: Procesando XML con ExtractFromXml...");
+
+                // Procesar XML con el método existente
+                var result = ComprobanteExtractor.ExtractFromXml(xmlContent);
+
+                _logger.LogInformation("XML procesado - Gravados: {G}, Inafectos: {I}, Exonerados: {E}, AfectacionDetectada: {AD}",
+                    result.MontosGravados.Count, result.MontosInafectos.Count, result.MontosExonerados.Count, result.AfectacionIgvDetectada);
+
+                _logger.LogInformation("===== FIN: XML obtenido y procesado exitosamente =====");
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al obtener datos desde SUNAT");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Determina el tipo de comprobante SUNAT según la serie
+        /// </summary>
+        private string DeterminarTipoComprobantePorSerie(string serie)
+        {
+            if (string.IsNullOrWhiteSpace(serie))
+                return "01";
+
+            var serieUpper = serie.ToUpper();
+
+            if (serieUpper.StartsWith("F") || serieUpper.StartsWith("E"))
+                return "01"; // Factura
+
+            if (serieUpper.StartsWith("B"))
+                return "03"; // Boleta
+
+            return "01"; // Por defecto Factura
+        }
+
+        /// <summary>
+        /// Extrae el contenido XML de un archivo ZIP codificado en Base64
+        /// </summary>
+        private string? ExtraerXmlDeZip(string base64Zip)
+        {
+            try
+            {
+                _logger.LogInformation("Decodificando Base64 (longitud: {Length})...", base64Zip.Length);
+                var zipBytes = Convert.FromBase64String(base64Zip);
+                _logger.LogInformation("ZIP decodificado: {Size} bytes", zipBytes.Length);
+
+                using var zipStream = new MemoryStream(zipBytes);
+                using var archive = new ZipArchive(zipStream, ZipArchiveMode.Read);
+
+                _logger.LogInformation("ZIP abierto, contiene {Count} entradas", archive.Entries.Count);
+
+                var xmlEntry = archive.Entries.FirstOrDefault(e => e.Name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase));
+
+                if (xmlEntry == null)
+                {
+                    _logger.LogWarning("No se encontró archivo XML en el ZIP");
+                    return null;
+                }
+
+                _logger.LogInformation("Archivo XML encontrado: {Name}, extrayendo contenido...", xmlEntry.Name);
+
+                using var entryStream = xmlEntry.Open();
+                using var reader = new StreamReader(entryStream, Encoding.UTF8);
+                var xmlContent = reader.ReadToEnd();
+                _logger.LogInformation("Contenido XML extraído: {Length} caracteres", xmlContent.Length);
+                return xmlContent;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al extraer XML del ZIP");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Clase para deserializar la respuesta de SUNAT
+        /// </summary>
+        private class SunatXmlResponse
+        {
+            public string? NomArchivo { get; set; }
+            public string? ValArchivo { get; set; }
+        }
+
         private void CleanLineBreaks(ComprobanteExtractorResult result)
         {
             if (result == null) return;

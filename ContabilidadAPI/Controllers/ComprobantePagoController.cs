@@ -450,6 +450,106 @@ namespace ContabilidadAPI.Controllers
                 return StatusCode(500, new ApiResponse<bool>(false, $"Error interno del servidor: {ex.Message}"));
             }
         }
+
+        /// <summary>
+        /// Obtener el PDF de un comprobante (endpoint público)
+        /// </summary>
+        /// <param name="id">ID del comprobante</param>
+        /// <returns>Archivo PDF del comprobante</returns>
+        [HttpGet("{id}/pdf")]
+        [AllowAnonymous] // Endpoint público
+        [ProducesResponseType(typeof(FileResult), 200)]
+        [ProducesResponseType(404)]
+        [ProducesResponseType(500)]
+        public async Task<IActionResult> GetComprobantePdf(int id, [FromQuery] bool inline = false)
+        {
+            try
+            {
+                _logger.LogInformation("Solicitando PDF para comprobante ID={Id}, inline={Inline}", id, inline);
+
+                if (id <= 0)
+                {
+                    return BadRequest(new { message = "ID de comprobante inválido" });
+                }
+
+                // Obtener el comprobante
+                var comprobante = await _comprobanteService.GetByIdAsync(id);
+
+                if (comprobante == null)
+                {
+                    _logger.LogWarning("Comprobante ID={Id} no encontrado", id);
+                    return NotFound(new { message = $"Comprobante con ID {id} no encontrado" });
+                }
+
+                // Verificar que tenga ruta de archivo
+                if (string.IsNullOrEmpty(comprobante.Ruta))
+                {
+                    _logger.LogWarning("Comprobante ID={Id} no tiene archivo adjunto", id);
+                    return NotFound(new { message = "El comprobante no tiene archivo adjunto" });
+                }
+
+                // Construir ruta completa del archivo
+                var filePath = Path.Combine(Directory.GetCurrentDirectory(), comprobante.Ruta.Replace("/", Path.DirectorySeparatorChar.ToString()));
+
+                _logger.LogInformation("Buscando archivo en: {FilePath}", filePath);
+
+                // Verificar que el archivo exista
+                if (!System.IO.File.Exists(filePath))
+                {
+                    _logger.LogWarning("Archivo no encontrado en ruta: {FilePath}", filePath);
+                    return NotFound(new { message = "El archivo del comprobante no se encuentra en el servidor" });
+                }
+
+                // Obtener extension del archivo
+                var extension = Path.GetExtension(filePath).ToLowerInvariant();
+                string contentType;
+
+                switch (extension)
+                {
+                    case ".pdf":
+                        contentType = "application/pdf";
+                        break;
+                    case ".jpg":
+                    case ".jpeg":
+                        contentType = "image/jpeg";
+                        break;
+                    case ".png":
+                        contentType = "image/png";
+                        break;
+                    case ".xml":
+                        contentType = "application/xml";
+                        break;
+                    default:
+                        contentType = "application/octet-stream";
+                        break;
+                }
+
+                // Leer el archivo
+                var fileBytes = await System.IO.File.ReadAllBytesAsync(filePath);
+
+                // Generar nombre de archivo
+                var fileName = Path.GetFileName(filePath);
+
+                _logger.LogInformation("Sirviendo archivo {FileName} ({Size} bytes) para comprobante ID={Id}",
+                    fileName, fileBytes.Length, id);
+
+                // Si inline=true, mostrar en navegador; sino, forzar descarga
+                if (inline)
+                {
+                    Response.Headers.Add("Content-Disposition", $"inline; filename=\"{fileName}\"");
+                    return File(fileBytes, contentType);
+                }
+                else
+                {
+                    return File(fileBytes, contentType, fileName);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al obtener PDF del comprobante ID={Id}", id);
+                return StatusCode(500, new { message = $"Error al obtener el archivo: {ex.Message}" });
+            }
+        }
          
     }
 }

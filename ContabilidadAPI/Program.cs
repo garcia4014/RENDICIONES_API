@@ -268,6 +268,9 @@ builder.Services.AddScoped<IUsuarioTipoPersonaService, UsuarioTipoPersonaService
 // Background Service para procesar comprobantes no desglosados
 builder.Services.AddScoped<ComprobanteDesglosadoBackgroundService>();
 
+// Background Service para descargar PDFs desde SUNAT
+builder.Services.AddScoped<ComprobantePdfSunatBackgroundService>();
+
 // Configurar Hangfire con SQL Server
 builder.Services.AddHangfire(configuration => configuration
     .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
@@ -398,6 +401,14 @@ RecurringJob.AddOrUpdate<ComprobanteDesglosadoBackgroundService>(
     "*/5 * * * *"); // Cada 5 minutos
 
 Log.Information("Background Job configurado: 'procesar-comprobantes-no-desglosados' ejecutándose cada 5 minutos");
+
+// Configurar Job Recurrente: Descargar PDFs desde SUNAT cada 5 minutos
+RecurringJob.AddOrUpdate<ComprobantePdfSunatBackgroundService>(
+    "descargar-pdfs-desde-sunat",
+    service => service.ProcesarComprobantesParaPdfSunat(),
+    "*/5 * * * *"); // Cada 5 minutos
+
+Log.Information("Background Job configurado: 'descargar-pdfs-desde-sunat' ejecutándose cada 5 minutos");
 
 // Middleware para manejo de errores en producción
 if (!app.Environment.IsDevelopment())
