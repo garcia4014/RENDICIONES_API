@@ -143,6 +143,7 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
             var montoExonerado = ExtraerPrimerMonto(xmlResult.MontosExonerados);
             var montoIgvEspecial = ExtraerPrimerMonto(xmlResult.MontosIgvEspecial);
             var montoImpuestoConsumo = ExtraerPrimerMonto(xmlResult.MontosImpuestoConsumo);
+            var montoTotal = ExtraerPrimerMonto(xmlResult.MontosTotales);
 
             // Actualizar campos de montos
             comprobante.MontoGravado = montoGravado;
@@ -150,6 +151,12 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
             comprobante.MontoExonerado = montoExonerado;
             comprobante.MontoIgvEspecial = montoIgvEspecial;
             comprobante.MontoOtrosCargos = montoImpuestoConsumo;
+            
+            // Actualizar monto total desde el XML (NO calculado)
+            if (montoTotal > 0)
+            {
+                comprobante.Monto = montoTotal;
+            }
 
             // Actualizar flags booleanos
             comprobante.Gravado = montoGravado > 0;
@@ -179,14 +186,15 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
             // Marcar como desglosado
             comprobante.Desglosado = true;
             
-            _logger.LogInformation("Datos actualizados - Gravado: {G}, Inafecto: {I}, Exonerado: {E}, IgvEspecial: {IE}, ImpuestoConsumo: {IC}, IGV: {IGV}, Subtotal: {S}",
+            _logger.LogInformation("Datos actualizados - Gravado: {G}, Inafecto: {I}, Exonerado: {E}, IgvEspecial: {IE}, ImpuestoConsumo: {IC}, IGV: {IGV}, Subtotal: {S}, MontoTotal: {MT}",
                 comprobante.MontoGravado,
                 comprobante.MontoInafecto,
                 comprobante.MontoExonerado,
                 comprobante.MontoIgvEspecial,
                 comprobante.MontoOtrosCargos,
                 comprobante.Igv,
-                comprobante.Subtotal);
+                comprobante.Subtotal,
+                comprobante.Monto);
         }
 
         /// <summary>
