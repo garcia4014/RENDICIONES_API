@@ -151,8 +151,31 @@ namespace CapaDatos.ContabilidadAPI.DAO.Implementation
                 existingComprobante.ValidoSunat = comprobante.ValidoSunat;
                 existingComprobante.Notas = comprobante.Notas;
                 existingComprobante.PlacaVehicular = comprobante.PlacaVehicular;
+                existingComprobante.SvTgId = comprobante.SvTgId;
+                
+                // Campos de afectación IGV
+                existingComprobante.Gravado = comprobante.Gravado;
                 existingComprobante.Inafecto = comprobante.Inafecto;
                 existingComprobante.Exonerado = comprobante.Exonerado;
+                existingComprobante.IgvEspecial = comprobante.IgvEspecial;
+                existingComprobante.OtrosCargos = comprobante.OtrosCargos;
+                
+                // Montos desglosados
+                existingComprobante.MontoGravado = comprobante.MontoGravado;
+                existingComprobante.MontoInafecto = comprobante.MontoInafecto;
+                existingComprobante.MontoExonerado = comprobante.MontoExonerado;
+                existingComprobante.MontoIgvEspecial = comprobante.MontoIgvEspecial;
+                existingComprobante.MontoOtrosCargos = comprobante.MontoOtrosCargos;
+                
+                // Totales calculados
+                existingComprobante.Igv = comprobante.Igv;
+                existingComprobante.Subtotal = comprobante.Subtotal;
+                existingComprobante.IgvPorcentaje = comprobante.IgvPorcentaje;
+                existingComprobante.Desglosado = comprobante.Desglosado;
+                
+                // Campos de PDF SUNAT
+                existingComprobante.PdfSunat = comprobante.PdfSunat;
+                existingComprobante.ReintentosPdfSunat = comprobante.ReintentosPdfSunat;
 
                 await _context.SaveChangesAsync();
 

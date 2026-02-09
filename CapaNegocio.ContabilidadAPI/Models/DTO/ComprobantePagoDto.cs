@@ -153,12 +153,10 @@ namespace CapaNegocio.ContabilidadAPI.Models.DTO
         public string? Serie { get; set; } = string.Empty; 
         public string? Correlativo { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "La fecha de emisión es obligatoria")]
-        public DateTime FechaEmision { get; set; }
+        public DateTime? FechaEmision { get; set; }
 
-        [Required(ErrorMessage = "El monto es obligatorio")]
         [Range(0.01, double.MaxValue, ErrorMessage = "El monto debe ser mayor a 0")]
-        public decimal Monto { get; set; }
+        public decimal? Monto { get; set; }
 
         [Range(10000000000, 99999999999, ErrorMessage = "El RUC debe tener 11 dígitos")]
         public long? Ruc { get; set; }

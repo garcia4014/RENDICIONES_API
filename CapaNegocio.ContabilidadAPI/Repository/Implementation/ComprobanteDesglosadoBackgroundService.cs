@@ -1,5 +1,6 @@
 using CapaDatos.ContabilidadAPI;
 using CapaDatos.ContabilidadAPI.Models;
+using CapaNegocio.ContabilidadAPI.Repository.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -93,6 +94,18 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                             // Guardar cambios solo si fue exitoso
                             await dbContext.SaveChangesAsync();
                             exitosos++;
+
+                            // Validar comprobante en SUNAT después de procesamiento exitoso
+                            try
+                            {
+                                var comprobantePagoService = scope.ServiceProvider.GetRequiredService<IComprobantePagoService>();
+                                await comprobantePagoService.ValidarComprobanteEnSunatAsync(comprobante.Id);
+                                _logger.LogInformation("Validación SUNAT ejecutada para comprobante ID={Id}", comprobante.Id);
+                            }
+                            catch (Exception validationEx)
+                            {
+                                _logger.LogWarning(validationEx, "Error al validar comprobante ID={Id} en SUNAT, pero el procesamiento fue exitoso", comprobante.Id);
+                            }
                         }
                         else
                         {
@@ -152,10 +165,11 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
             comprobante.MontoIgvEspecial = montoIgvEspecial;
             comprobante.MontoOtrosCargos = montoImpuestoConsumo;
             
-            // Actualizar monto total desde el XML (NO calculado)
-            if (montoTotal > 0)
+            // Actualizar monto total desde el XML si está disponible y el comprobante no tiene monto
+            if (montoTotal > 0 && (comprobante.Monto == null || comprobante.Monto == 0))
             {
                 comprobante.Monto = montoTotal;
+                _logger.LogInformation("Monto total actualizado desde XML: {MontoTotal}", montoTotal);
             }
 
             // Actualizar flags booleanos
@@ -183,10 +197,32 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                 comprobante.Igv = 0;
             }
 
+            // Actualizar Fecha de Emisión desde el XML si está disponible
+            if (xmlResult.FechasEmision != null && xmlResult.FechasEmision.Any())
+            {
+                var fechaString = xmlResult.FechasEmision.First();
+                _logger.LogInformation("Intentando parsear fecha desde XML. Valor crudo: '{FechaString}'", fechaString);
+                
+                if (DateTime.TryParse(fechaString, out var fechaEmision))
+                {
+                    comprobante.FechaEmision = fechaEmision;
+                    _logger.LogInformation("Fecha de emisión actualizada desde XML: {FechaEmision}", fechaEmision.ToString("dd/MM/yyyy"));
+                }
+                else
+                {
+                    _logger.LogWarning("No se pudo parsear la fecha desde XML. Valor: '{FechaString}'", fechaString);
+                }
+            }
+            else
+            {
+                _logger.LogWarning("XML no contiene fechas de emisión. FechasEmision Count: {Count}", 
+                    xmlResult.FechasEmision?.Count ?? 0);
+            }
+
             // Marcar como desglosado
             comprobante.Desglosado = true;
             
-            _logger.LogInformation("Datos actualizados - Gravado: {G}, Inafecto: {I}, Exonerado: {E}, IgvEspecial: {IE}, ImpuestoConsumo: {IC}, IGV: {IGV}, Subtotal: {S}, MontoTotal: {MT}",
+            _logger.LogInformation("Datos actualizados - Gravado: {G}, Inafecto: {I}, Exonerado: {E}, IgvEspecial: {IE}, ImpuestoConsumo: {IC}, IGV: {IGV}, Subtotal: {S}, MontoTotal: {MT}, FechaEmision: {FE}",
                 comprobante.MontoGravado,
                 comprobante.MontoInafecto,
                 comprobante.MontoExonerado,
@@ -194,7 +230,8 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                 comprobante.MontoOtrosCargos,
                 comprobante.Igv,
                 comprobante.Subtotal,
-                comprobante.Monto);
+                comprobante.Monto,
+                comprobante.FechaEmision?.ToString("dd/MM/yyyy") ?? "N/A");
         }
 
         /// <summary>
@@ -318,11 +355,17 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                 // Procesar XML
                 var result = ComprobanteExtractor.ExtractFromXml(xmlContent);
                 
-                _logger.LogInformation("XML procesado - AfectacionDetectada: {AD}, Gravados: {G}, Inafectos: {I}, Exonerados: {E}",
+                _logger.LogInformation("XML procesado - AfectacionDetectada: {AD}, Gravados: {G}, Inafectos: {I}, Exonerados: {E}, FechasEmision: {FE}",
                     result.AfectacionIgvDetectada,
                     result.MontosGravados.Count,
                     result.MontosInafectos.Count,
-                    result.MontosExonerados.Count);
+                    result.MontosExonerados.Count,
+                    result.FechasEmision.Count);
+                
+                if (result.FechasEmision.Any())
+                {
+                    _logger.LogInformation("Fecha extraída del XML: {Fecha}", string.Join(", ", result.FechasEmision));
+                }
 
                 return result;
             }

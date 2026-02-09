@@ -379,23 +379,72 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
 
                 var comprobante = _mapper.Map<ComprobantePago>(updateDto);
                 
-                // Verificar si cambiaron los datos clave del comprobante (Serie, Correlativo, RUC)
-                bool datosClaveCambiaron = 
+                // Preservar campos que no deben sobrescribirse con NULL si no fueron enviados
+                if (string.IsNullOrEmpty(updateDto.TipoComprobante))
+                {
+                    comprobante.TipoComprobante = comprobanteExistente.TipoComprobante;
+                }
+                
+                if (string.IsNullOrEmpty(updateDto.Descripcion))
+                {
+                    comprobante.Descripcion = comprobanteExistente.Descripcion;
+                }
+                
+                // Preservar SvIdDetalle si no se envió (no debe sobrescribirse con NULL)
+                if (updateDto.SvIdDetalle == null)
+                {
+                    comprobante.SvIdDetalle = comprobanteExistente.SvIdDetalle;
+                }
+                
+                // Preservar SvTgId si no se envió (no debe sobrescribirse con NULL)
+                if (updateDto.SvTgId == null)
+                {
+                    comprobante.SvTgId = comprobanteExistente.SvTgId;
+                }
+                
+                // Verificar si cambiaron los datos que identifican el comprobante en SUNAT
+                // Solo Serie, Correlativo y RUC; el Monto puede cambiar sin afectar la identidad del comprobante
+                bool datosIdentidadCambiaron = 
                     comprobanteExistente.Serie != updateDto.Serie ||
                     comprobanteExistente.Correlativo != updateDto.Correlativo ||
-                    comprobanteExistente.Ruc != updateDto.Ruc ||
-                    comprobanteExistente.Monto != updateDto.Monto;
+                    comprobanteExistente.Ruc != updateDto.Ruc;
                 
-                if (datosClaveCambiaron)
+                // Verificar si el tipo de comprobante cambió
+                bool tipoComprobanteCambio = comprobanteExistente.TipoComprobante != updateDto.TipoComprobante;
+                
+                // La ruta solo se limpia si:
+                // 1. Se envió una nueva ruta (archivo nuevo subido)
+                // 2. O cambiaron los datos de identidad Y el tipo es validado por SUNAT 
+                //    Y el PDF actual fue descargado de SUNAT (PdfSunat = true)
+                //    (necesitamos descargar el PDF correcto con los nuevos datos)
+                // 
+                // IMPORTANTE: Si el PDF fue subido MANUALMENTE (PdfSunat = false),
+                // se PRESERVA siempre, porque sigue siendo válido aunque cambien
+                // el tipo de comprobante o los datos (Serie, Correlativo, RUC)
+                if (!string.IsNullOrEmpty(updateDto.Ruta) && updateDto.Ruta.Length > 10)
                 {
-                    // Si cambiaron los datos clave, limpiar la ruta para que se busque el nuevo PDF
+                    // Se subió un nuevo archivo, actualizar la ruta
+                    comprobante.Ruta = updateDto.Ruta;
+                    comprobante.PdfSunat = false; // Es un PDF subido manualmente
+                    comprobante.ReintentosPdfSunat = 0;
+                }
+                else if (datosIdentidadCambiaron && 
+                         EsTipoValidadoPorSunat(updateDto.TipoComprobante) && 
+                         comprobanteExistente.PdfSunat == true)
+                {
+                    // Si cambiaron los datos de identidad Y es un tipo validado por SUNAT
+                    // Y el PDF actual fue descargado de SUNAT,
+                    // limpiar para buscar el PDF correcto desde SUNAT con los nuevos datos
                     comprobante.Ruta = null;
                     comprobante.PdfSunat = false;
                     comprobante.ReintentosPdfSunat = 0;
                 }
                 else
                 {
-                    // Mantener la ruta existente si no cambiaron los datos clave
+                    // En cualquier otro caso, preservar la ruta existente:
+                    // - El PDF fue subido manualmente (se preserva siempre)
+                    // - No cambiaron datos de identidad
+                    // - Es un tipo manual que no se valida por SUNAT
                     comprobante.Ruta = comprobanteExistente.Ruta;
                     comprobante.PdfSunat = comprobanteExistente.PdfSunat;
                     comprobante.ReintentosPdfSunat = comprobanteExistente.ReintentosPdfSunat;
@@ -679,7 +728,9 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
             return tipoComprobante switch
             {
                 "01" => "Factura",
+                "01F" => "Factura Física",
                 "03" => "Boleta de Venta",
+                "03F" => "Boleta Física",
                 "RH" => "Recibo por Honorarios",
                 "07" => "Nota de Crédito",
                 "08" => "Nota de Débito",
@@ -701,6 +752,30 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                 "10" => "Otros",
                 _ => "No especificado"
             };
+        }
+
+        /// <summary>
+        /// Determina si un tipo de comprobante es validado por SUNAT
+        /// </summary>
+        private bool EsTipoValidadoPorSunat(string? tipoComprobante)
+        {
+            if (string.IsNullOrEmpty(tipoComprobante))
+                return false;
+
+            // Tipos ELECTRÓNICOS validados por SUNAT
+            var tiposValidadosPorSunat = new HashSet<string>
+            {
+                "01",  // Factura Electrónica
+                "03",  // Boleta Electrónica
+                "RH",  // Recibo por Honorarios
+                "07",  // Nota de Crédito
+                "08",  // Nota de Débito
+                "09",  // Guía de Remisión
+                "20",  // Comprobante de Retención
+                "40"   // Comprobante de Percepción
+            };
+
+            return tiposValidadosPorSunat.Contains(tipoComprobante.ToUpper());
         }
 
         /// <summary>

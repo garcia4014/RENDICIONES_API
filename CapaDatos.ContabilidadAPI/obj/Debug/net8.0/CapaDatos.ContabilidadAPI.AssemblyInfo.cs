@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("CapaDatos.ContabilidadAPI")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+fbec81827ac46e08522f9655e3182768341a282b")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+3672a3cc0b705ddf91cf2bc51acae6118625faeb")]
 [assembly: System.Reflection.AssemblyProductAttribute("CapaDatos.ContabilidadAPI")]
 [assembly: System.Reflection.AssemblyTitleAttribute("CapaDatos.ContabilidadAPI")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

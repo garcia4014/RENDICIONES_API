@@ -244,9 +244,17 @@ namespace CapaDatos.ContabilidadAPI.Models
                 // 2. FECHA DE EMISIÓN
                 var issueDate = root.Element(rootNamespace + "IssueDate")?.Value ??
                                root.Element(cbc + "IssueDate")?.Value;
+                
+                Console.WriteLine($"[XML] Fecha de emisión encontrada: '{issueDate ?? "NULL"}'");
+                
                 if (!string.IsNullOrEmpty(issueDate))
                 {
                     result.FechasEmision.Add(issueDate);
+                    Console.WriteLine($"[XML] Fecha agregada a FechasEmision: {issueDate}");
+                }
+                else
+                {
+                    Console.WriteLine("[XML] No se encontró fecha de emisión en el XML");
                 }
 
                 // 3. RUC Y RAZÓN SOCIAL DEL EMISOR
