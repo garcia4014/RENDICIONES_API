@@ -281,11 +281,17 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
 
                 var token = parametro.Valor;
 
-                // Determinar tipo de comprobante por la serie y asegurar 2 dígitos (01, 03, 07, etc.)
-                string tipoComprobante = DeterminarTipoComprobante(serie).PadLeft(2, '0');
+                String tipoComprobante = dbContext.ComprobantesPago
+                    .Where(c => c.Ruc == long.Parse(ruc) && c.Serie == serie && c.Correlativo == correlativo)
+                    .Select(c => c.TipoComprobante)
+                    .FirstOrDefault() ?? "01"; // Default a "01" si no se encuentra
+
+                tipoComprobante = tipoComprobante.PadLeft(2, '0'); // Asegurar formato de 2 dígitos
+                 _logger.LogInformation("Tipo de comprobante determinado: {TipoComprobante}", tipoComprobante);
 
                 // Construir URL
                 var url = $"https://api-cpe.sunat.gob.pe/v1/contribuyente/consultacpe/comprobantes/{ruc}-{tipoComprobante}-{serie}-{correlativo}-2/02";
+                 _logger.LogInformation("Url de consulta :{Url} ",url);
 
                 // Configurar request con reintentos
                 const int maxRetries = 3; // Menos reintentos que en el proceso principal

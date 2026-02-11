@@ -1,20 +1,21 @@
-name: Deploy ContabilidadAPI to IIS Production
+name: Deploy ContabilidadAPI to IIS Development
 
 on:
   push:
     branches: 
-      - main
-      - master
+      - develop
+      - developer
   workflow_dispatch: # Permite ejecución manual
 
 jobs:
   deploy:
-    name: Build and Deploy to IIS
+    name: Build and Deploy to IIS (DEV)
     runs-on: [self-hosted, Windows, X64]
+    environment: develop
     
     env:
-      SITE_NAME: API_CONTABILIDAD
-      SITE_PATH: C:\inetpub\wwwroot\API_CONTABILIDAD
+      SITE_NAME: API_CONTABILIDAD_DEV
+      SITE_PATH: C:\inetpub\wwwroot\API_CONTABILIDAD_DEV
       BACKUP_PATH: C:\inetpub\backups
       PROJECT_PATH: ContabilidadAPI/ContabilidadAPI.csproj
       PUBLISH_PATH: .\publish
@@ -206,7 +207,7 @@ jobs:
           Write-Host "Creating backup..." -ForegroundColor Yellow
           
           $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-          $backupFolder = "$env:BACKUP_PATH\API_CONTABILIDAD_$timestamp"
+          $backupFolder = "$env:BACKUP_PATH\API_CONTABILIDAD_DEV_$timestamp"
           
           # Create backup directory if not exists
           if (-Not (Test-Path $env:BACKUP_PATH)) {
