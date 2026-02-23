@@ -136,6 +136,15 @@ namespace CapaDatos.ContabilidadAPI.Models
         [Column("REINTENTOS_PDF_SUNAT")]
         public int? ReintentosPdfSunat { get; set; } = 0;
 
+        [Column("Activo_Emp")]
+        public bool? ActivoEmp { get; set; }
+
+        [Column("Habido_Emp")]
+        public bool? HabidoEmp { get; set; }
+
+        [Column("Rus_Emp")]
+        public bool? RusEmp { get; set; }
+
         [ForeignKey("SvIdCabecera")]
         [JsonIgnore]
         public virtual SviaticosCabecera? SviaticosCabecera { get; set; }

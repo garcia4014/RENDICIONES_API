@@ -273,11 +273,31 @@ builder.Services.AddScoped<INotificacionesService, NotificacionesServiceImpl>();
 builder.Services.AddScoped<IPersonalService, PersonalServiceImpl>();
 builder.Services.AddScoped<IUsuarioTipoPersonaService, UsuarioTipoPersonaServiceImpl>();
 
+// Configurar HttpClient con timeout adecuado y manejo de DNS
+builder.Services.AddHttpClient(string.Empty, client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(90); // 90 segundos de timeout total
+})
+.ConfigurePrimaryHttpMessageHandler(() =>
+{
+    return new SocketsHttpHandler
+    {
+        PooledConnectionLifetime = TimeSpan.FromMinutes(2), // Renovar conexiones cada 2 minutos
+        PooledConnectionIdleTimeout = TimeSpan.FromMinutes(1),
+        MaxConnectionsPerServer = 10,
+        EnableMultipleHttp2Connections = true,
+        ConnectTimeout = TimeSpan.FromSeconds(30) // 30 segundos para conectar
+    };
+});
+
 // Background Service para procesar comprobantes no desglosados
 builder.Services.AddScoped<ComprobanteDesglosadoBackgroundService>();
 
 // Background Service para descargar PDFs desde SUNAT
 builder.Services.AddScoped<ComprobantePdfSunatBackgroundService>();
+
+// Background Service para verificar datos de empresas emisoras en SUNAT
+builder.Services.AddScoped<ComprobanteEmpresaVerificadorBackgroundService>();
 
 // Configurar Hangfire con SQL Server
 builder.Services.AddHangfire(configuration => configuration
@@ -417,6 +437,14 @@ RecurringJob.AddOrUpdate<ComprobantePdfSunatBackgroundService>(
     "*/5 * * * *"); // Cada 5 minutos
 
 Log.Information("Background Job configurado: 'descargar-pdfs-desde-sunat' ejecutándose cada 5 minutos");
+
+// Configurar Job Recurrente: Verificar empresas emisoras en SUNAT cada 5 minutos
+RecurringJob.AddOrUpdate<ComprobanteEmpresaVerificadorBackgroundService>(
+    "verificar-empresas-emisoras-sunat",
+    service => service.VerificarEmpresasEmisoras(),
+    "*/5 * * * *"); // Cada 5 minutos
+
+Log.Information("Background Job configurado: 'verificar-empresas-emisoras-sunat' ejecutándose cada 5 minutos");
 
 // Middleware para manejo de errores en producción
 if (!app.Environment.IsDevelopment())
