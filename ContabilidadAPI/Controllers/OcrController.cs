@@ -2,10 +2,8 @@ using CapaDatos.ContabilidadAPI.Models;
 using CapaNegocio.ContabilidadAPI.Models;
 using CapaNegocio.ContabilidadAPI.Models.DTO;
 using CapaNegocio.ContabilidadAPI.Repository.Interfaces;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using PdfSharp.BigGustave;
 using CapaDatos.ContabilidadAPI;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 using System.IO.Compression;
@@ -801,7 +799,7 @@ namespace ContabilidadAPI.Controllers
 
                 // Decodificar Base64 y extraer XML del ZIP
                 _logger.LogInformation("PASO 5: Decodificando Base64 y extrayendo XML del ZIP...");
-                var xmlContent = ExtraerXmlDeZip(sunatResponse.ValArchivo);
+                var xmlContent = ExtraerXmlDeZip(sunatResponse.ValArchivo!);
 
                 if (string.IsNullOrWhiteSpace(xmlContent))
                 {
@@ -863,7 +861,10 @@ namespace ContabilidadAPI.Controllers
 
                 _logger.LogInformation("ZIP abierto, contiene {Count} entradas", archive.Entries.Count);
 
-                var xmlEntry = archive.Entries.FirstOrDefault(e => e.Name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase));
+                // Excluir archivos que empiezan con "R-" (CDR de SUNAT, no el comprobante)
+                var xmlEntry = archive.Entries.FirstOrDefault(e =>
+                    e.Name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase) &&
+                    !e.Name.StartsWith("R-", StringComparison.OrdinalIgnoreCase));
 
                 if (xmlEntry == null)
                 {
