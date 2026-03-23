@@ -798,7 +798,7 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
 
                 // Decodificar Base64 y extraer XML del ZIP
                 _logger.LogInformation("PASO 6: Decodificando Base64 y extrayendo XML del ZIP...");
-                var xmlContent = ExtraerXmlDeZip(sunatResponse.ValArchivo);
+                var xmlContent = ExtraerXmlDeZip(sunatResponse.ValArchivo!);
                 
                 if (string.IsNullOrWhiteSpace(xmlContent))
                 {
@@ -868,8 +868,10 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                     _logger.LogInformation("Entrada en ZIP: {Name} ({Size} bytes)", entry.Name, entry.Length);
                 }
                 
-                // Buscar el primer archivo .xml en el ZIP
-                var xmlEntry = archive.Entries.FirstOrDefault(e => e.Name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase));
+                // Buscar el XML del comprobante, excluyendo archivos "R-*" (CDR de SUNAT)
+                var xmlEntry = archive.Entries.FirstOrDefault(e =>
+                    e.Name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase) &&
+                    !e.Name.StartsWith("R-", StringComparison.OrdinalIgnoreCase));
                 
                 if (xmlEntry == null)
                 {

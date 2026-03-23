@@ -2,6 +2,7 @@ using AutoMapper;
 using CapaDatos.ContabilidadAPI.DAO.Interfaces;
 using CapaNegocio.ContabilidadAPI.Models;
 using CapaNegocio.ContabilidadAPI.Models.DTO;
+using CapaNegocio.ContabilidadAPI.Repository.Implementation;
 using CapaNegocio.ContabilidadAPI.Repository.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cors;
@@ -26,6 +27,7 @@ namespace ContabilidadAPI.Controllers
         private readonly INotificacionesService _notificacionesService;
         private readonly ISviaticoService _SviaticoService;
         private readonly IComprobantePago _comprobanteService;
+        private readonly ComprobantePdfSunatBackgroundService _pdfSunatService;
 
         public ComprobantePagoController(
             ISviaticoService sviaticoService,
@@ -34,7 +36,8 @@ namespace ContabilidadAPI.Controllers
             ISviatico dao,
             IComprobantePagoService comprobantePagoService,
             ILogger<ComprobantePagoController> logger,
-            IComprobantePago comprobanteService)
+            IComprobantePago comprobanteService,
+            ComprobantePdfSunatBackgroundService pdfSunatService)
         {
             _comprobanteService = comprobanteService;
             _SviaticoService = sviaticoService;
@@ -43,6 +46,7 @@ namespace ContabilidadAPI.Controllers
             _dao = dao;
             _mapper = mapper;
             _notificacionesService = notificacionesService;
+            _pdfSunatService = pdfSunatService;
         }
 
         [HttpGet]
@@ -552,6 +556,46 @@ namespace ContabilidadAPI.Controllers
                 return StatusCode(500, new { message = $"Error al obtener el archivo: {ex.Message}" });
             }
         }
-         
+
+        /// <summary>
+        /// Descarga masiva de PDFs desde SUNAT bajo demanda.
+        /// Primero valida qué PDFs ya existen en disco y los omite;
+        /// luego descarga desde SUNAT solo los faltantes.
+        /// Todo ocurre de forma síncrona durante la petición.
+        /// </summary>
+        /// <param name="request">Arreglo de IDs de comprobantes a procesar</param>
+        [HttpPost("descargar-pdfs-masivo")]
+        [ProducesResponseType(typeof(ApiResponse<DescargaPdfMasivaResultado>), 200)]
+        [ProducesResponseType(typeof(ApiResponse<string>), 400)]
+        [ProducesResponseType(500)]
+        public async Task<IActionResult> DescargarPdfsMasivo([FromBody] DescargarPdfsMasivoRequest request)
+        {
+            if (request?.Ids == null || !request.Ids.Any())
+                return BadRequest(new ApiResponse<string>("Debe proporcionar al menos un ID de comprobante"));
+
+            if (request.Ids.Count > 200)
+                return BadRequest(new ApiResponse<string>("El arreglo no puede superar los 200 IDs por petición"));
+
+            try
+            {
+                _logger.LogInformation("Solicitud de descarga masiva de PDFs para {Cantidad} comprobantes", request.Ids.Count);
+                var resultado = await _pdfSunatService.DescargarPdfsMasivoAsync(request.Ids);
+                return Ok(new ApiResponse<DescargaPdfMasivaResultado>(resultado, "Proceso completado"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error en descarga masiva de PDFs");
+                return StatusCode(500, new ApiResponse<string>($"Error interno del servidor: {ex.Message}"));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Request para el endpoint de descarga masiva de PDFs
+    /// </summary>
+    public class DescargarPdfsMasivoRequest
+    {
+        /// <summary>Lista de IDs de comprobantes a procesar (máximo 200)</summary>
+        public List<int> Ids { get; set; } = new();
     }
 }

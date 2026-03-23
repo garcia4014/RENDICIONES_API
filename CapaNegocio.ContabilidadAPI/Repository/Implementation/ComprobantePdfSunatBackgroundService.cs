@@ -127,6 +127,131 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
         }
 
         /// <summary>
+        /// Descarga PDFs desde SUNAT bajo demanda para un arreglo de IDs.
+        /// Valida primero cuáles ya existen en disco y omite los que ya están.
+        /// Se ejecuta de forma síncrona durante la petición HTTP.
+        /// </summary>
+        public async Task<DescargaPdfMasivaResultado> DescargarPdfsMasivoAsync(List<int> ids)
+        {
+            var resultado = new DescargaPdfMasivaResultado();
+            _logger.LogInformation("Inicio descarga masiva bajo demanda para {Cantidad} IDs", ids.Count);
+
+            try
+            {
+                using var scope = _serviceProvider.CreateScope();
+                var dbContext = scope.ServiceProvider.GetRequiredService<SvrendicionesContext>();
+                var httpClient = scope.ServiceProvider.GetRequiredService<HttpClient>();
+
+                // Obtener los comprobantes solicitados de la BD
+                var comprobantes = await dbContext.ComprobantesPago
+                    .Where(c => ids.Contains(c.Id) && c.Activo == true)
+                    .ToListAsync();
+
+                // IDs no encontrados en BD
+                var idsEncontrados = comprobantes.Select(c => c.Id).ToHashSet();
+                resultado.NoEncontrados.AddRange(ids.Where(id => !idsEncontrados.Contains(id)));
+
+                var pdfDirectory = Path.Combine(Directory.GetCurrentDirectory(), "PDF");
+                if (!Directory.Exists(pdfDirectory))
+                    Directory.CreateDirectory(pdfDirectory);
+
+                foreach (var comprobante in comprobantes)
+                {
+                    try
+                    {
+                        // 1. Verificar si ya existe por la Ruta guardada en BD
+                        if (!string.IsNullOrEmpty(comprobante.Ruta))
+                        {
+                            var rutaCompleta = Path.Combine(Directory.GetCurrentDirectory(),
+                                comprobante.Ruta.Replace("/", Path.DirectorySeparatorChar.ToString()));
+                            if (System.IO.File.Exists(rutaCompleta))
+                            {
+                                _logger.LogInformation("PDF ya existe (por Ruta BD) para comprobante ID={Id}, omitiendo", comprobante.Id);
+                                resultado.Omitidos.Add(comprobante.Id);
+                                continue;
+                            }
+                        }
+
+                        // 2. Verificar si existe por nombre esperado (la BD puede no tener Ruta actualizada)
+                        if (comprobante.Ruc != null && !string.IsNullOrEmpty(comprobante.Serie) && !string.IsNullOrEmpty(comprobante.Correlativo))
+                        {
+                            var tipoComp = DeterminarTipoComprobantePorSerie(comprobante.Serie, comprobante.TipoComprobante).PadLeft(2, '0');
+                            var corrPadded = comprobante.Correlativo.PadLeft(7, '0');
+                            var expectedFileName = $"{comprobante.Ruc}_{tipoComp}_{comprobante.Serie}_{corrPadded}.pdf";
+                            var expectedPath = Path.Combine(pdfDirectory, expectedFileName);
+                            if (System.IO.File.Exists(expectedPath))
+                            {
+                                _logger.LogInformation("PDF encontrado por nombre esperado para comprobante ID={Id}, actualizando BD si es necesario", comprobante.Id);
+                                if (string.IsNullOrEmpty(comprobante.Ruta) || comprobante.PdfSunat != true)
+                                {
+                                    comprobante.Ruta = $"PDF/{expectedFileName}";
+                                    comprobante.PdfSunat = true;
+                                    comprobante.Extension = ".pdf";
+                                    await dbContext.SaveChangesAsync();
+                                }
+                                resultado.Omitidos.Add(comprobante.Id);
+                                continue;
+                            }
+                        }
+
+                        // 3. Validar campos requeridos para descargar de SUNAT
+                        if (comprobante.Ruc == null || string.IsNullOrEmpty(comprobante.Serie) || string.IsNullOrEmpty(comprobante.Correlativo))
+                        {
+                            _logger.LogWarning("Comprobante ID={Id} no tiene RUC, Serie o Correlativo requeridos", comprobante.Id);
+                            resultado.Fallidos.Add(new DescargaPdfItemFallido
+                            {
+                                Id = comprobante.Id,
+                                Razon = "Faltan datos requeridos (RUC, Serie o Correlativo)"
+                            });
+                            continue;
+                        }
+
+                        // 4. Descargar desde SUNAT
+                        comprobante.ReintentosPdfSunat = (comprobante.ReintentosPdfSunat ?? 0) + 1;
+                        var descargado = await DescargarPdfDesdeSunatAsync(dbContext, httpClient, comprobante);
+                        await dbContext.SaveChangesAsync();
+
+                        if (descargado)
+                        {
+                            _logger.LogInformation("PDF descargado exitosamente para comprobante ID={Id}", comprobante.Id);
+                            resultado.Descargados.Add(comprobante.Id);
+                        }
+                        else
+                        {
+                            _logger.LogWarning("No se pudo descargar PDF de SUNAT para comprobante ID={Id}", comprobante.Id);
+                            resultado.Fallidos.Add(new DescargaPdfItemFallido
+                            {
+                                Id = comprobante.Id,
+                                Razon = "SUNAT no devolvió el PDF (token inválido, comprobante inexistente o datos incorrectos)"
+                            });
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error al procesar comprobante ID={Id} en descarga masiva", comprobante.Id);
+                        resultado.Fallidos.Add(new DescargaPdfItemFallido
+                        {
+                            Id = comprobante.Id,
+                            Razon = $"Error inesperado: {ex.Message}"
+                        });
+                    }
+                }
+
+                _logger.LogInformation(
+                    "Fin descarga masiva bajo demanda - Descargados={D}, Omitidos={O}, Fallidos={F}, NoEncontrados={N}",
+                    resultado.Descargados.Count, resultado.Omitidos.Count,
+                    resultado.Fallidos.Count, resultado.NoEncontrados.Count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error general en descarga masiva de PDFs");
+                throw;
+            }
+
+            return resultado;
+        }
+
+        /// <summary>
         /// Descarga el PDF desde SUNAT y lo guarda en disco
         /// </summary>
         private async Task<bool> DescargarPdfDesdeSunatAsync(
@@ -338,5 +463,34 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
             public string? NomArchivo { get; set; }  // Nombre del archivo ZIP
             public string? ValArchivo { get; set; }  // Contenido del ZIP en base64
         }
+    }
+
+    /// <summary>
+    /// Resultado de la descarga masiva de PDFs bajo demanda
+    /// </summary>
+    public class DescargaPdfMasivaResultado
+    {
+        /// <summary>IDs cuyos PDFs fueron descargados exitosamente desde SUNAT</summary>
+        public List<int> Descargados { get; set; } = new();
+
+        /// <summary>IDs que ya tenían PDF en disco y fueron omitidos</summary>
+        public List<int> Omitidos { get; set; } = new();
+
+        /// <summary>IDs que fallaron al intentar la descarga</summary>
+        public List<DescargaPdfItemFallido> Fallidos { get; set; } = new();
+
+        /// <summary>IDs que no existen en la base de datos</summary>
+        public List<int> NoEncontrados { get; set; } = new();
+
+        public int Total => Descargados.Count + Omitidos.Count + Fallidos.Count + NoEncontrados.Count;
+    }
+
+    /// <summary>
+    /// Detalle de un comprobante que falló durante la descarga masiva
+    /// </summary>
+    public class DescargaPdfItemFallido
+    {
+        public int Id { get; set; }
+        public string Razon { get; set; } = string.Empty;
     }
 }
