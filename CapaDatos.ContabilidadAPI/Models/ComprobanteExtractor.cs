@@ -1,11 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using System.Xml.Linq;
-
 namespace CapaDatos.ContabilidadAPI.Models
 {
     public class ComprobanteExtractorResult
@@ -380,6 +376,17 @@ namespace CapaDatos.ContabilidadAPI.Models
                                 continue;
                             }
                             
+                            // Si es IGV (código 1000) sin TaxExemptionReasonCode, asumir gravado
+                            // Facturas como las de Primax/Coesti ponen TaxExemptionReasonCode solo en InvoiceLine,
+                            // no en el TaxTotal de cabecera. El schema IGV 1000 con TaxableAmount > 0 = gravado.
+                            if (taxSchemeId == "1000" && string.IsNullOrEmpty(taxExemptionReasonCode))
+                            {
+                                Console.WriteLine($"[XML] Gravado (IGV scheme 1000, sin código exención): {taxableAmount}");
+                                result.MontosGravados.Add(taxableAmount);
+                                afectacionDetectada = true;
+                                continue;
+                            }
+                            
                             // Códigos SUNAT para IGV:
                             // 10 = Gravado - Operación Onerosa (puede ser 18% o 10%)
                             // 20 = Exonerado - Operación Onerosa
@@ -549,9 +556,37 @@ namespace CapaDatos.ContabilidadAPI.Models
                 }
                 
                 result.AfectacionIgvDetectada = afectacionDetectada;
+
+                // FALLBACK: si ningún camino detectó afectación, inferir desde LegalMonetaryTotal.
+                // Aplica cuando SUNAT devuelve XML simplificado sin InvoiceLine y el TaxTotal de cabecera
+                // no tiene TaxExemptionReasonCode ni TaxSchemeId reconocible.
+                if (!afectacionDetectada && legalMonetaryTotal != null)
+                {
+                    var lineExtAmt = legalMonetaryTotal.Element(cbc + "LineExtensionAmount")?.Value;
+                    bool tieneIgv = taxTotalsList.Any(t =>
+                        t.Elements(cac + "TaxSubtotal").Any(s =>
+                        {
+                            var schemeId = s.Element(cac + "TaxCategory")
+                                            ?.Element(cac + "TaxScheme")
+                                            ?.Element(cbc + "ID")?.Value;
+                            var taxAmtStr = s.Element(cbc + "TaxAmount")?.Value;
+                            return schemeId == "1000" &&
+                                   decimal.TryParse(taxAmtStr,
+                                       System.Globalization.NumberStyles.Any,
+                                       System.Globalization.CultureInfo.InvariantCulture,
+                                       out decimal amt) && amt > 0;
+                        }));
+
+                    if (!string.IsNullOrEmpty(lineExtAmt) && tieneIgv)
+                    {
+                        Console.WriteLine($"[XML] FALLBACK LegalMonetaryTotal: Gravado inferido: {lineExtAmt}");
+                        result.MontosGravados.Add(lineExtAmt);
+                        result.AfectacionIgvDetectada = true;
+                    }
+                }
                 
                 Console.WriteLine($"[XML] Resultado final - Gravados: {result.MontosGravados.Count}, Inafectos: {result.MontosInafectos.Count}, Exonerados: {result.MontosExonerados.Count}, IgvEspecial: {result.MontosIgvEspecial.Count}, ImpuestoConsumo: {result.MontosImpuestoConsumo.Count}");
-                Console.WriteLine($"[XML] AfectacionDetectada: {afectacionDetectada}");
+                Console.WriteLine($"[XML] AfectacionDetectada: {result.AfectacionIgvDetectada}");
 
                 return result;
             }

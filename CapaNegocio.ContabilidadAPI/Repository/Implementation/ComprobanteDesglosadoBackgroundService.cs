@@ -413,7 +413,10 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                 using var zipStream = new MemoryStream(zipBytes);
                 using var archive = new ZipArchive(zipStream, ZipArchiveMode.Read);
 
-                var xmlEntry = archive.Entries.FirstOrDefault(e => e.Name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase));
+                // Excluir archivos "R-*" (CDR de SUNAT, solo tomar el comprobante)
+                var xmlEntry = archive.Entries.FirstOrDefault(e =>
+                    e.Name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase) &&
+                    !e.Name.StartsWith("R-", StringComparison.OrdinalIgnoreCase));
 
                 if (xmlEntry == null)
                 {
