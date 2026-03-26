@@ -1,4 +1,3 @@
-using CapaDatos.ContabilidadAPI;
 using CapaDatos.ContabilidadAPI.Models;
 using CapaNegocio.ContabilidadAPI.Repository.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -37,7 +36,7 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
             try
             {
                 using var scope = _serviceProvider.CreateScope();
-                var dbContext = scope.ServiceProvider.GetRequiredService<SvrendicionesContext>();
+                var dbContext = scope.ServiceProvider.GetRequiredService<CapaDatos.ContabilidadAPI.SvrendicionesContext>();
                 var httpClient = scope.ServiceProvider.GetRequiredService<HttpClient>();
 
                 // Fecha límite: últimos 2 días
@@ -146,17 +145,85 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
         }
 
         /// <summary>
+        /// Procesa el desglose de un único comprobante por su ID.
+        /// Obtiene el XML de SUNAT y actualiza los detalles de impuestos.
+        /// </summary>
+        /// <returns>true si fue procesado exitosamente, false si falló o no era necesario.</returns>
+        public async Task<DesglosePorIdResultado> ProcesarComprobanteDesglosadoPorIdAsync(int id)
+        {
+            _logger.LogInformation("Procesando desglose para comprobante ID={Id}", id);
+
+            using var scope = _serviceProvider.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<CapaDatos.ContabilidadAPI.SvrendicionesContext>();
+            var httpClient = scope.ServiceProvider.GetRequiredService<HttpClient>();
+
+            var comprobante = await dbContext.ComprobantesPago
+                .FirstOrDefaultAsync(c => c.Id == id && c.Activo == true);
+
+            if (comprobante == null)
+                return new DesglosePorIdResultado { Exito = false, Mensaje = $"Comprobante ID={id} no encontrado o inactivo" };
+
+            if (comprobante.Desglosado == true)
+                return new DesglosePorIdResultado { Exito = true, Mensaje = "El comprobante ya estaba desglosado", YaDesglosado = true };
+
+            if (comprobante.Ruc == null || string.IsNullOrEmpty(comprobante.Serie) || string.IsNullOrEmpty(comprobante.Correlativo))
+                return new DesglosePorIdResultado { Exito = false, Mensaje = "Faltan datos requeridos (RUC, Serie o Correlativo)" };
+
+            try
+            {
+                var xmlResult = await ObtenerXmlDesdeSunatAsync(
+                    dbContext,
+                    httpClient,
+                    comprobante.Ruc.Value.ToString(),
+                    comprobante.Serie,
+                    comprobante.Correlativo);
+
+                if (xmlResult == null || !xmlResult.AfectacionIgvDetectada)
+                {
+                    _logger.LogWarning("No se pudo obtener XML o no se detectó afectación para comprobante ID={Id}", id);
+                    return new DesglosePorIdResultado { Exito = false, Mensaje = "SUNAT no devolvió XML válido o no se detectó afectación IGV" };
+                }
+
+                ActualizarComprobanteConDatosXml(comprobante, xmlResult);
+                await dbContext.SaveChangesAsync();
+
+                // Validar en SUNAT después del procesamiento exitoso
+                try
+                {
+                    var comprobantePagoService = scope.ServiceProvider.GetRequiredService<IComprobantePagoService>();
+                    await comprobantePagoService.ValidarComprobanteEnSunatAsync(comprobante.Id);
+                    _logger.LogInformation("Validación SUNAT ejecutada para comprobante ID={Id}", id);
+                }
+                catch (Exception validationEx)
+                {
+                    _logger.LogWarning(validationEx, "Error al validar comprobante ID={Id} en SUNAT, pero el desglose fue exitoso", id);
+                }
+
+                _logger.LogInformation("Comprobante ID={Id} desglosado exitosamente", id);
+                return new DesglosePorIdResultado { Exito = true, Mensaje = "Comprobante desglosado exitosamente" };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al desglosas comprobante ID={Id}", id);
+                // Descartar cambios parciales
+                try { dbContext.Entry(comprobante).State = EntityState.Unchanged; } catch { }
+                return new DesglosePorIdResultado { Exito = false, Mensaje = $"Error inesperado: {ex.Message}" };
+            }
+        }
+
+        /// <summary>
         /// Actualiza el comprobante con los datos extraídos del XML
         /// </summary>
         private void ActualizarComprobanteConDatosXml(ComprobantePago comprobante, ComprobanteExtractorResult xmlResult)
         {
             // Extraer montos de las listas
-            var montoGravado = ExtraerPrimerMonto(xmlResult.MontosGravados);
-            var montoInafecto = ExtraerPrimerMonto(xmlResult.MontosInafectos);
-            var montoExonerado = ExtraerPrimerMonto(xmlResult.MontosExonerados);
-            var montoIgvEspecial = ExtraerPrimerMonto(xmlResult.MontosIgvEspecial);
-            var montoImpuestoConsumo = ExtraerPrimerMonto(xmlResult.MontosImpuestoConsumo);
-            var montoTotal = ExtraerPrimerMonto(xmlResult.MontosTotales);
+            var montoGravado        = ExtraerPrimerMonto(xmlResult.MontosGravados);
+            var montoInafecto       = ExtraerPrimerMonto(xmlResult.MontosInafectos);
+            var montoExonerado      = ExtraerPrimerMonto(xmlResult.MontosExonerados);
+            var montoIgvEspecial    = SumarMontos(xmlResult.MontosIgvEspecial);     // TaxAmount acumulado por línea
+            var montoBaseIgvEspecial= SumarMontos(xmlResult.MontosBaseIgvEspecial); // Base imponible acumulada por línea
+            var montoImpuestoConsumo= ExtraerPrimerMonto(xmlResult.MontosImpuestoConsumo);
+            var montoTotal          = ExtraerPrimerMonto(xmlResult.MontosTotales);
 
             // Actualizar campos de montos
             comprobante.MontoGravado = montoGravado;
@@ -179,12 +246,18 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
             comprobante.IgvEspecial = montoIgvEspecial > 0;
             comprobante.OtrosCargos = montoImpuestoConsumo > 0;
 
-            // Calcular IGV y Subtotal si hay monto gravado
+            // Calcular IGV y Subtotal
             if (montoGravado > 0)
             {
                 var porcentajeIgv = comprobante.IgvPorcentaje ?? 18;
                 comprobante.Igv = Math.Round(montoGravado * porcentajeIgv / 100, 2);
                 comprobante.Subtotal = montoGravado;
+            }
+            else if (montoBaseIgvEspecial > 0)
+            {
+                // IGV especial (tasa reducida, p.ej. 10.5%): el impuesto ya viene calculado por SUNAT
+                comprobante.Subtotal = montoBaseIgvEspecial;
+                comprobante.Igv = montoIgvEspecial;
             }
             else if (montoInafecto > 0)
             {
@@ -235,6 +308,18 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
         }
 
         /// <summary>
+        /// Suma todos los montos válidos de una lista de strings
+        /// </summary>
+        private decimal SumarMontos(List<string> montos)
+        {
+            if (montos == null || !montos.Any())
+                return 0m;
+            return montos.Sum(m => decimal.TryParse(m,
+                System.Globalization.NumberStyles.Any,
+                System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : 0m);
+        }
+
+        /// <summary>
         /// Extrae el primer monto válido de una lista de strings
         /// </summary>
         private decimal ExtraerPrimerMonto(List<string> montos)
@@ -258,7 +343,7 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
         /// (Adaptado del método en AzureDocumentIntelligenceService)
         /// </summary>
         private async Task<ComprobanteExtractorResult?> ObtenerXmlDesdeSunatAsync(
-            SvrendicionesContext dbContext,
+            CapaDatos.ContabilidadAPI.SvrendicionesContext dbContext,
             HttpClient httpClient,
             string ruc, 
             string serie, 
@@ -443,5 +528,16 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
             public string? NomArchivo { get; set; }
             public string? ValArchivo { get; set; }
         }
+    }
+
+    /// <summary>
+    /// Resultado del procesamiento de desglose por ID
+    /// </summary>
+    public class DesglosePorIdResultado
+    {
+        public bool Exito { get; set; }
+        public string Mensaje { get; set; } = string.Empty;
+        /// <summary>true si el comprobante ya estaba desglosado previamente (no requirió acción)</summary>
+        public bool YaDesglosado { get; set; }
     }
 }

@@ -4,14 +4,13 @@ using CapaNegocio.ContabilidadAPI.Models;
 using CapaNegocio.ContabilidadAPI.Models.DTO;
 using CapaNegocio.ContabilidadAPI.Repository.Implementation;
 using CapaNegocio.ContabilidadAPI.Repository.Interfaces;
+using Hangfire;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel.DataAnnotations;
-using Hangfire;
-
-namespace ContabilidadAPI.Controllers
-{
+ 
+ 
     /// <summary>
     /// Controlador para gestión de comprobantes de pago
     /// </summary>
@@ -28,6 +27,7 @@ namespace ContabilidadAPI.Controllers
         private readonly ISviaticoService _SviaticoService;
         private readonly IComprobantePago _comprobanteService;
         private readonly ComprobantePdfSunatBackgroundService _pdfSunatService;
+        private readonly ComprobanteDesglosadoBackgroundService _desglosadoService;
 
         public ComprobantePagoController(
             ISviaticoService sviaticoService,
@@ -37,7 +37,8 @@ namespace ContabilidadAPI.Controllers
             IComprobantePagoService comprobantePagoService,
             ILogger<ComprobantePagoController> logger,
             IComprobantePago comprobanteService,
-            ComprobantePdfSunatBackgroundService pdfSunatService)
+            ComprobantePdfSunatBackgroundService pdfSunatService,
+            ComprobanteDesglosadoBackgroundService desglosadoService)
         {
             _comprobanteService = comprobanteService;
             _SviaticoService = sviaticoService;
@@ -47,6 +48,7 @@ namespace ContabilidadAPI.Controllers
             _mapper = mapper;
             _notificacionesService = notificacionesService;
             _pdfSunatService = pdfSunatService;
+            _desglosadoService = desglosadoService;
         }
 
         [HttpGet]
@@ -564,6 +566,37 @@ namespace ContabilidadAPI.Controllers
         /// Todo ocurre de forma síncrona durante la petición.
         /// </summary>
         /// <param name="request">Arreglo de IDs de comprobantes a procesar</param>
+        /// <summary>
+        /// Procesa el desglose (extrae impuestos desde XML de SUNAT) de un único comprobante por su ID.
+        /// Si el comprobante ya estaba desglosado, lo indica sin reprocesar.
+        /// </summary>
+        [HttpPost("{id}/desglosa")]
+        [ProducesResponseType(typeof(ApiResponse<DesglosePorIdResultado>), 200)]
+        [ProducesResponseType(typeof(ApiResponse<string>), 400)]
+        [ProducesResponseType(404)]
+        [ProducesResponseType(500)]
+        public async Task<IActionResult> DesglosaComprobante([FromRoute] int id)
+        {
+            if (id <= 0)
+                return BadRequest(new ApiResponse<string>("ID de comprobante inválido"));
+
+            try
+            {
+                _logger.LogInformation("Solicitud de desglose para comprobante ID={Id}", id);
+                var resultado = await _desglosadoService.ProcesarComprobanteDesglosadoPorIdAsync(id);
+
+                if (!resultado.Exito && resultado.Mensaje.Contains("no encontrado"))
+                    return NotFound(new ApiResponse<string>(resultado.Mensaje));
+
+                return Ok(new ApiResponse<DesglosePorIdResultado>(resultado, resultado.Mensaje));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error en desglose de comprobante ID={Id}", id);
+                return StatusCode(500, new ApiResponse<string>($"Error interno del servidor: {ex.Message}"));
+            }
+        }
+
         [HttpPost("descargar-pdfs-masivo")]
         [ProducesResponseType(typeof(ApiResponse<DescargaPdfMasivaResultado>), 200)]
         [ProducesResponseType(typeof(ApiResponse<string>), 400)]
@@ -597,5 +630,4 @@ namespace ContabilidadAPI.Controllers
     {
         /// <summary>Lista de IDs de comprobantes a procesar (máximo 200)</summary>
         public List<int> Ids { get; set; } = new();
-    }
-}
+    }  
