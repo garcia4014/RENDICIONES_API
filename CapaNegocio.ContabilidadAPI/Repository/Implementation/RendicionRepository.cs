@@ -1,8 +1,7 @@
 ﻿using System;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
-using CapaDatos.ContabilidadAPI; 
-using CapaNegocio.ContabilidadAPI.Repository.Interfaces; 
+using CapaNegocio.ContabilidadAPI.Repository.Interfaces;
 
 namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
 {
@@ -15,7 +14,7 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
             _context = context;
         }
 
-        public async Task<RendicionCabecera> CrearCabeceraAsync(RendicionCabecera cabecera)
+        public async Task<CapaDatos.ContabilidadAPI.RendicionCabecera> CrearCabeceraAsync(CapaDatos.ContabilidadAPI.RendicionCabecera cabecera)
         {
             cabecera.RendId = Guid.NewGuid();
             cabecera.FechaCreacion = DateTime.Now;
@@ -26,7 +25,7 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
             return cabecera;
         }
 
-        public async Task<RendicionDetalle> AgregarDetalleAsync(Guid rendId, RendicionDetalle detalle)
+        public async Task<CapaDatos.ContabilidadAPI.RendicionDetalle> AgregarDetalleAsync(Guid rendId, CapaDatos.ContabilidadAPI.RendicionDetalle detalle)
         {
             detalle.DetId = Guid.NewGuid();
             detalle.RendId = rendId;
@@ -59,7 +58,7 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
             return true;
         }
 
-        public async Task<RendicionCabecera> ObtenerPorIdAsync(Guid rendId)
+        public async Task<CapaDatos.ContabilidadAPI.RendicionCabecera> ObtenerPorIdAsync(Guid rendId)
         {
             return await _context.RendicionCabeceras
                 .Include(r => r.Detalles)
