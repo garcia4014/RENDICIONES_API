@@ -217,7 +217,7 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
         private void ActualizarComprobanteConDatosXml(ComprobantePago comprobante, ComprobanteExtractorResult xmlResult)
         {
             // Extraer montos de las listas
-            var montoGravado        = ExtraerPrimerMonto(xmlResult.MontosGravados);
+            var montoGravado        = SumarMontos(xmlResult.MontosGravados);
             var montoInafecto       = ExtraerPrimerMonto(xmlResult.MontosInafectos);
             var montoExonerado      = ExtraerPrimerMonto(xmlResult.MontosExonerados);
             var montoIgvEspecial    = SumarMontos(xmlResult.MontosIgvEspecial);     // TaxAmount acumulado por línea

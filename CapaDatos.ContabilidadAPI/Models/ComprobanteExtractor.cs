@@ -307,6 +307,7 @@ namespace CapaDatos.ContabilidadAPI.Models
 
                 // 5. CARGOS ADICIONALES (AllowanceCharge)
                 bool afectacionDetectada = false;
+                bool gravadoCapturadoEnCabecera = false;
                 
                 Console.WriteLine("[XML] Buscando AllowanceCharge...");
                 var allowanceCharges = root.Elements(rootNamespace + "AllowanceCharge").Concat(root.Elements(cac + "AllowanceCharge"));
@@ -324,10 +325,11 @@ namespace CapaDatos.ContabilidadAPI.Models
                     // Si es un cargo (true) y tiene monto
                     if (chargeIndicator == "true" && !string.IsNullOrEmpty(amount))
                     {
-                        // Código 50 = Cargos adicionales (puede ser ISC, servicios, etc)
-                        if (reasonCode == "50")
+                        // Código 50 = ISC/cargos adicionales
+                        // Código 46 = Descuentos y cargos globales (p.ej. cargo por llevar, delivery, servicio)
+                        if (reasonCode == "50" || reasonCode == "46")
                         {
-                            Console.WriteLine($"[XML] Cargo adicional detectado (código 50): {amount}");
+                            Console.WriteLine($"[XML] Cargo adicional detectado (código {reasonCode}): {amount}");
                             result.MontosImpuestoConsumo.Add(amount);
                             afectacionDetectada = true;
                         }
@@ -393,6 +395,7 @@ namespace CapaDatos.ContabilidadAPI.Models
                                     Console.WriteLine($"[XML] Gravado (IGV scheme 1000, {headerPercent}%, sin código exención): {taxableAmount}");
                                     result.MontosGravados.Add(taxableAmount);
                                     afectacionDetectada = true;
+                                    gravadoCapturadoEnCabecera = true;
                                 }
                                 // else: sin Percent o tasa reducida → no clasificar; InvoiceLine o FALLBACK lo hacen
                                 continue;
@@ -513,7 +516,7 @@ namespace CapaDatos.ContabilidadAPI.Models
                                                     afectacionDetectada = true;
                                                 }
                                             }
-                                            else
+                                            else if (!gravadoCapturadoEnCabecera)
                                             {
                                                 if (!result.MontosGravados.Contains(lineTaxableAmount))
                                                 {
@@ -523,7 +526,7 @@ namespace CapaDatos.ContabilidadAPI.Models
                                                 }
                                             }
                                         }
-                                        else
+                                        else if (!gravadoCapturadoEnCabecera)
                                         {
                                             if (!result.MontosGravados.Contains(lineTaxableAmount))
                                             {
