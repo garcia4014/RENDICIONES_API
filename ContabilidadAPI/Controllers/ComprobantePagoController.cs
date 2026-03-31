@@ -353,6 +353,7 @@ using System.ComponentModel.DataAnnotations;
         public async Task<IActionResult> ValidarDuplicado(
             [FromQuery][Required] string serie,
             [FromQuery][Required] string correlativo,
+            [FromQuery] long? ruc = null,
             [FromQuery] int? idExcluir = null)
         {
             try
@@ -367,8 +368,19 @@ using System.ComponentModel.DataAnnotations;
                     return BadRequest(new ApiResponse<bool>(false, "El correlativo es requerido"));
                 }
 
-                var existeDuplicado = await _comprobantePagoService.ExisteDuplicadoAsync(serie, correlativo, idExcluir);
-                var mensaje = existeDuplicado ? "Existe un comprobante con la misma serie y correlativo" : "No existe duplicado";
+                bool existeDuplicado;
+                string mensaje;
+
+                if (ruc.HasValue)
+                {
+                    existeDuplicado = await _comprobantePagoService.ExisteDuplicadoPorRucAsync(ruc.Value, serie, correlativo, idExcluir);
+                    mensaje = existeDuplicado ? "Existe un comprobante del mismo RUC con la misma serie y correlativo" : "No existe duplicado";
+                }
+                else
+                {
+                    existeDuplicado = await _comprobantePagoService.ExisteDuplicadoAsync(serie, correlativo, idExcluir);
+                    mensaje = existeDuplicado ? "Existe un comprobante con la misma serie y correlativo" : "No existe duplicado";
+                }
 
                 return Ok(new ApiResponse<bool>(existeDuplicado, mensaje));
             }
