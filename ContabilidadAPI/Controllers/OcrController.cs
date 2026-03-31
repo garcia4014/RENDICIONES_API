@@ -1,8 +1,8 @@
-using CapaDatos.ContabilidadAPI.Models;
 using CapaNegocio.ContabilidadAPI.Models;
 using CapaNegocio.ContabilidadAPI.Models.DTO;
 using CapaNegocio.ContabilidadAPI.Repository.Interfaces;
 using CapaDatos.ContabilidadAPI;
+using CapaDatos.ContabilidadAPI.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
@@ -977,8 +977,12 @@ namespace ContabilidadAPI.Controllers
             // Sumarizar Montos Exonerados
             result.MontosExonerados = SumarArray(result.MontosExonerados);
 
-            // Sumarizar Montos IGV Especial
+            // Sumarizar TaxAmounts de IGV Especial (impuesto cobrado por línea)
             result.MontosIgvEspecial = SumarArray(result.MontosIgvEspecial);
+
+            // Sumarizar bases imponibles de IGV Especial (suma de TaxableAmount por línea)
+            // Este valor es el que representa el subtotal real para facturas con IGV reducido
+            result.MontosBaseIgvEspecial = SumarArray(result.MontosBaseIgvEspecial);
 
             // Sumarizar Montos Impuesto Consumo
             result.MontosImpuestoConsumo = SumarArray(result.MontosImpuestoConsumo);

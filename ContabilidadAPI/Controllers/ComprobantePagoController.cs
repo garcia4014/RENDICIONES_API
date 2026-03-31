@@ -597,6 +597,41 @@ using System.ComponentModel.DataAnnotations;
             }
         }
 
+        /// <summary>
+        /// Obtiene el XML de SUNAT para el comprobante indicado y lo guarda en la ruta
+        /// configurada en appsettings (DesglosarXml:PathXml).
+        /// Si ya existe en disco, lo devuelve desde caché sin llamar a SUNAT.
+        /// </summary>
+        [HttpGet("{id}/xml")]
+        [ProducesResponseType(typeof(ApiResponse<ObtenerXmlResultado>), 200)]
+        [ProducesResponseType(typeof(ApiResponse<string>), 400)]
+        [ProducesResponseType(404)]
+        [ProducesResponseType(500)]
+        public async Task<IActionResult> ObtenerXmlComprobante([FromRoute] int id)
+        {
+            if (id <= 0)
+                return BadRequest(new ApiResponse<string>("ID de comprobante inválido"));
+
+            try
+            {
+                _logger.LogInformation("Solicitud de XML para comprobante ID={Id}", id);
+                var resultado = await _desglosadoService.ObtenerYGuardarXmlPorIdAsync(id);
+
+                if (!resultado.Exito && resultado.Mensaje.Contains("no encontrado"))
+                    return NotFound(new ApiResponse<string>(resultado.Mensaje));
+
+                if (!resultado.Exito)
+                    return BadRequest(new ApiResponse<string>(resultado.Mensaje));
+
+                return Ok(new ApiResponse<ObtenerXmlResultado>(resultado, resultado.Mensaje));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al obtener XML de comprobante ID={Id}", id);
+                return StatusCode(500, new ApiResponse<string>($"Error interno del servidor: {ex.Message}"));
+            }
+        }
+
         [HttpPost("descargar-pdfs-masivo")]
         [ProducesResponseType(typeof(ApiResponse<DescargaPdfMasivaResultado>), 200)]
         [ProducesResponseType(typeof(ApiResponse<string>), 400)]

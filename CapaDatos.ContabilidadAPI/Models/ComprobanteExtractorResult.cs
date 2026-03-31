@@ -1,4 +1,5 @@
-﻿using System.Text.RegularExpressions;
+﻿#if false
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 namespace CapaDatos.ContabilidadAPI.Models
 {
@@ -23,15 +24,14 @@ namespace CapaDatos.ContabilidadAPI.Models
         public List<string> MontosImpuestoConsumo { get; set; } = new();
         /// <summary>TaxAmount del nodo TaxSubtotal de cabecera — valor exacto de IGV declarado por SUNAT, sin redondeos de línea</summary>
         public string MontoIgvDocumento { get; set; } = "";
-        /// <summary>TaxableAmount del nodo TaxSubtotal de cabecera — base imponible exacta declarada por SUNAT (sin sumar líneas)</summary>
-        public string MontoGravadoDocumento { get; set; } = "";
-        /// <summary>Contenido XML original en texto plano (UTF-8), tal como vino del ZIP de SUNAT</summary>
-        public string XmlRaw { get; set; } = "";
         
         // Indicador de si se pudo extraer la afectación del IGV
         public bool AfectacionIgvDetectada { get; set; } = false;
     }
+}
 
+namespace CapaDatos.ContabilidadAPI.Models
+{
     public static class ComprobanteExtractor
     {
         private static readonly Regex RucRegex =
@@ -393,20 +393,17 @@ namespace CapaDatos.ContabilidadAPI.Models
                             //   no clasificar aquí para evitar errores. El FALLBACK cubre el caso sin líneas.
                             if (taxSchemeId == "1000" && string.IsNullOrEmpty(taxExemptionReasonCode))
                             {
-                            // Siempre capturar los valores de cabecera (fuente oficial SUNAT),
-                            // independientemente de si hay Percent explícito o no.
-                            if (!string.IsNullOrEmpty(taxAmount))
-                                result.MontoIgvDocumento = taxAmount;
-                            if (!string.IsNullOrEmpty(taxableAmount))
-                                result.MontoGravadoDocumento = taxableAmount;
-
-                            if (!string.IsNullOrEmpty(taxPercent) &&
-                                decimal.TryParse(taxPercent, System.Globalization.NumberStyles.Any,
-                                    System.Globalization.CultureInfo.InvariantCulture, out decimal headerPercent) &&
-                                headerPercent >= 18m)
-                            {
-                                Console.WriteLine($"[XML] Gravado (IGV scheme 1000, {headerPercent}%, sin código exención): {taxableAmount}");
-                                result.MontosGravados.Add(taxableAmount);
+                                if (!string.IsNullOrEmpty(taxPercent) &&
+                                    decimal.TryParse(taxPercent, System.Globalization.NumberStyles.Any,
+                                        System.Globalization.CultureInfo.InvariantCulture, out decimal headerPercent) &&
+                                    headerPercent >= 18m)
+                                {
+                                    Console.WriteLine($"[XML] Gravado (IGV scheme 1000, {headerPercent}%, sin código exención): {taxableAmount}");
+                                    result.MontosGravados.Add(taxableAmount);
+                                    if (!string.IsNullOrEmpty(taxAmount))
+                                        result.MontoIgvDocumento = taxAmount;
+                                    afectacionDetectada = true;
+                                    gravadoCapturadoEnCabecera = true;
                                 }
                                 // else: sin Percent o tasa reducida → no clasificar; InvoiceLine o FALLBACK lo hacen
                                 continue;
@@ -446,8 +443,6 @@ namespace CapaDatos.ContabilidadAPI.Models
                                     }
                                     if (!string.IsNullOrEmpty(taxAmount))
                                         result.MontoIgvDocumento = taxAmount;
-                                    if (!string.IsNullOrEmpty(taxableAmount))
-                                        result.MontoGravadoDocumento = taxableAmount;
                                     afectacionDetectada = true;
                                     break;
                                 case "20": // Exonerado
@@ -465,8 +460,6 @@ namespace CapaDatos.ContabilidadAPI.Models
                                     result.MontosIgvEspecial.Add(taxableAmount);
                                     if (!string.IsNullOrEmpty(taxAmount))
                                         result.MontoIgvDocumento = taxAmount;
-                                    if (!string.IsNullOrEmpty(taxableAmount))
-                                        result.MontoGravadoDocumento = taxableAmount;
                                     afectacionDetectada = true;
                                     break;
                                 case "50": // ISC
@@ -536,34 +529,49 @@ namespace CapaDatos.ContabilidadAPI.Models
                                             }
                                             else if (!gravadoCapturadoEnCabecera)
                                             {
-                                                Console.WriteLine($"[XML-LINE] Gravado ({linePercent}%) detectado: {lineTaxableAmount}");
-                                                result.MontosGravados.Add(lineTaxableAmount);
-                                                afectacionDetectada = true;
+                                                if (!result.MontosGravados.Contains(lineTaxableAmount))
+                                                {
+                                                    Console.WriteLine($"[XML-LINE] Gravado ({linePercent}%) detectado: {lineTaxableAmount}");
+                                                    result.MontosGravados.Add(lineTaxableAmount);
+                                                    afectacionDetectada = true;
+                                                }
                                             }
                                         }
                                         else if (!gravadoCapturadoEnCabecera)
                                         {
-                                            Console.WriteLine($"[XML-LINE] Gravado (sin % o no parseable, asumiendo 18%) detectado: {lineTaxableAmount}");
-                                            result.MontosGravados.Add(lineTaxableAmount);
-                                            afectacionDetectada = true;
+                                            if (!result.MontosGravados.Contains(lineTaxableAmount))
+                                            {
+                                                Console.WriteLine($"[XML-LINE] Gravado (sin % o no parseable, asumiendo 18%) detectado: {lineTaxableAmount}");
+                                                result.MontosGravados.Add(lineTaxableAmount);
+                                                afectacionDetectada = true;
+                                            }
                                         }
                                         break;
                                     case "20": // Exonerado
-                                        Console.WriteLine($"[XML-LINE] Exonerado detectado: {lineTaxableAmount}");
-                                        result.MontosExonerados.Add(lineTaxableAmount);
-                                        afectacionDetectada = true;
+                                        if (!result.MontosExonerados.Contains(lineTaxableAmount))
+                                        {
+                                            Console.WriteLine($"[XML-LINE] Exonerado detectado: {lineTaxableAmount}");
+                                            result.MontosExonerados.Add(lineTaxableAmount);
+                                            afectacionDetectada = true;
+                                        }
                                         break;
                                     case "30": // Inafecto
-                                        Console.WriteLine($"[XML-LINE] Inafecto detectado: {lineTaxableAmount}");
-                                        result.MontosInafectos.Add(lineTaxableAmount);
-                                        afectacionDetectada = true;
+                                        if (!result.MontosInafectos.Contains(lineTaxableAmount))
+                                        {
+                                            Console.WriteLine($"[XML-LINE] Inafecto detectado: {lineTaxableAmount}");
+                                            result.MontosInafectos.Add(lineTaxableAmount);
+                                            afectacionDetectada = true;
+                                        }
                                         break;
                                     case "17": // IGV Especial (IVAP) - siempre 10%
-                                        Console.WriteLine($"[XML-LINE] IGV Especial (código 17) detectado: Base={lineTaxableAmount}, TaxAmount={lineTaxAmount}");
-                                        result.MontosIgvEspecial.Add(lineTaxableAmount); // base imponible
-                                        if (!string.IsNullOrEmpty(lineTaxAmount))
-                                            result.MontosBaseIgvEspecial.Add(lineTaxAmount); // TaxAmount SUNAT
-                                        afectacionDetectada = true;
+                                        if (!result.MontosIgvEspecial.Contains(lineTaxableAmount))
+                                        {
+                                            Console.WriteLine($"[XML-LINE] IGV Especial (código 17) detectado: Base={lineTaxableAmount}, TaxAmount={lineTaxAmount}");
+                                            result.MontosIgvEspecial.Add(lineTaxableAmount); // base imponible
+                                            if (!string.IsNullOrEmpty(lineTaxAmount))
+                                                result.MontosBaseIgvEspecial.Add(lineTaxAmount); // TaxAmount SUNAT
+                                            afectacionDetectada = true;
+                                        }
                                         break;
                                 }
                             }
@@ -627,3 +635,4 @@ namespace CapaDatos.ContabilidadAPI.Models
         }
     }
 }
+#endif
