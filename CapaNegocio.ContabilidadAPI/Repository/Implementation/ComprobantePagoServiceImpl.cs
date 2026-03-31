@@ -1,7 +1,3 @@
-using AutoMapper;
-using CapaDatos.ContabilidadAPI;
-using CapaDatos.ContabilidadAPI.DAO.Interfaces;
-using CapaDatos.ContabilidadAPI.Models;
 using CapaNegocio.ContabilidadAPI.Models;
 using CapaNegocio.ContabilidadAPI.Models.DTO;
 using CapaNegocio.ContabilidadAPI.Repository.Interfaces;
@@ -260,10 +256,11 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
         {
             try
             {
-                // Validar duplicidad
-                if (await ExisteDuplicadoAsync(createDto.Serie, createDto.Correlativo))
+                
+                // Validar duplicidad por RUC + serie + correlativo
+                if (createDto.Ruc.HasValue && await ExisteDuplicadoPorRucAsync(createDto.Ruc.Value, createDto.Serie, createDto.Correlativo))
                 {
-                    return new ApiResponse<ComprobantePagoDto>(null, "Ya existe un comprobante con la misma serie y correlativo");
+                    return new ApiResponse<ComprobantePagoDto>(null, $"Ya existe un comprobante del RUC {createDto.Ruc} con la misma serie y correlativo");
                 }
 
                 //await _comprobantePagoDao.InactiveVoucherPrevius(createDto.SvIdCabecera, createDto.SvIdDetalle);
@@ -275,6 +272,8 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                 comprobante.Desglosado = createDto.Desglosado ?? false;
                 
                 // Calcular IGV total basándose en los montos específicos
+                // MontoGravado  = base imponible gravado 18%
+                // MontoIgvEspecial = base imponible IGV especial (tasa reducida ≈ 10%)
                 decimal igvGravado = (comprobante.MontoGravado ?? 0) * 0.18m;
                 decimal igvEspecial = (comprobante.MontoIgvEspecial ?? 0) * 0.10m;
                 decimal igvTotal = igvGravado + igvEspecial;
@@ -288,16 +287,17 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                 bool tieneInafecto = (comprobante.MontoInafecto ?? 0) > 0;
                 bool tieneOtrosCargos = (comprobante.MontoOtrosCargos ?? 0) > 0;
                 
-                // Determinar porcentaje: si hay múltiples tipos, dejarlo null o calcular efectivo
+                // Determinar porcentaje efectivo sobre la base total imponible
                 if (tieneGravado && tieneEspecial)
                 {
-                    // Mixto: calcular porcentaje efectivo
-                    decimal baseImponible = (comprobante.MontoGravado ?? 0) + (comprobante.MontoIgvEspecial ?? 0);
-                    comprobante.IgvPorcentaje = baseImponible > 0 ? (int)Math.Round((igvTotal / baseImponible) * 100) : 0;
+                    decimal baseTotal = (comprobante.MontoGravado ?? 0) + (comprobante.MontoIgvEspecial ?? 0);
+                    comprobante.IgvPorcentaje = baseTotal > 0 ? (int)Math.Round((igvTotal / baseTotal) * 100) : 0;
                 }
                 else if (tieneEspecial)
                 {
                     comprobante.IgvPorcentaje = 10;
+                    // Subtotal = base imponible IGV especial (el background job lo corregirá con el valor exacto de SUNAT)
+                    comprobante.Subtotal = comprobante.MontoIgvEspecial;
                 }
                 else if (tieneExonerado || tieneInafecto || tieneOtrosCargos)
                 {
@@ -306,6 +306,7 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                 else if (tieneGravado)
                 {
                     comprobante.IgvPorcentaje = 18;
+                    comprobante.Subtotal = comprobante.MontoGravado;
                 }
                 else
                 {
@@ -457,6 +458,8 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                 comprobante.Desglosado = updateDto.Desglosado ?? false;
                 
                 // Calcular IGV total basándose en los montos específicos
+                // MontoGravado  = base imponible gravado 18%
+                // MontoIgvEspecial = base imponible IGV especial (tasa reducida ≈ 10%)
                 decimal igvGravado = (comprobante.MontoGravado ?? 0) * 0.18m;
                 decimal igvEspecial = (comprobante.MontoIgvEspecial ?? 0) * 0.10m;
                 decimal igvTotal = igvGravado + igvEspecial;
@@ -470,16 +473,16 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                 bool tieneInafecto = (comprobante.MontoInafecto ?? 0) > 0;
                 bool tieneOtrosCargos = (comprobante.MontoOtrosCargos ?? 0) > 0;
                 
-                // Determinar porcentaje: si hay múltiples tipos, calcular efectivo
+                // Determinar porcentaje efectivo sobre la base total imponible
                 if (tieneGravado && tieneEspecial)
                 {
-                    // Mixto: calcular porcentaje efectivo
-                    decimal baseImponible = (comprobante.MontoGravado ?? 0) + (comprobante.MontoIgvEspecial ?? 0);
-                    comprobante.IgvPorcentaje = baseImponible > 0 ? (int)Math.Round((igvTotal / baseImponible) * 100) : 0;
+                    decimal baseTotal = (comprobante.MontoGravado ?? 0) + (comprobante.MontoIgvEspecial ?? 0);
+                    comprobante.IgvPorcentaje = baseTotal > 0 ? (int)Math.Round((igvTotal / baseTotal) * 100) : 0;
                 }
                 else if (tieneEspecial)
                 {
                     comprobante.IgvPorcentaje = 10;
+                    comprobante.Subtotal = comprobante.MontoIgvEspecial;
                 }
                 else if (tieneExonerado || tieneInafecto || tieneOtrosCargos)
                 {
@@ -488,6 +491,7 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                 else if (tieneGravado)
                 {
                     comprobante.IgvPorcentaje = 18;
+                    comprobante.Subtotal = comprobante.MontoGravado;
                 }
                 else
                 {
@@ -545,6 +549,30 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                 if (serie == null && correlativo == null) return false;
 
                 var comprobantes = await _comprobantePagoDao.GetBySerieCorrelattivoAsync(serie, correlativo);
+
+                if (idExcluir.HasValue)
+                {
+                    comprobantes = comprobantes.Where(c => c.Id != idExcluir.Value).ToList();
+                }
+
+                return comprobantes.Any();
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Valida la duplicidad de un comprobante por RUC, serie y correlativo
+        /// </summary>
+        public async Task<bool> ExisteDuplicadoPorRucAsync(long ruc, string serie, string correlativo, int? idExcluir = null)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(serie) && string.IsNullOrEmpty(correlativo)) return false;
+
+                var comprobantes = await _comprobantePagoDao.GetByRucSerieCorrelattivoAsync(ruc, serie, correlativo);
 
                 if (idExcluir.HasValue)
                 {

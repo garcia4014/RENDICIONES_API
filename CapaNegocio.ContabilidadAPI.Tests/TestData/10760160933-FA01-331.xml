@@ -1,0 +1,119 @@
+﻿<?xml version="1.0" encoding="ISO-8859-1"?>
+<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2" xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2" xmlns:ccts="urn:un:unece:uncefact:documentation:2" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2" xmlns:qdt="urn:oasis:names:specification:ubl:schema:xsd:QualifiedDatatypes-2" xmlns:sac="urn:sunat:names:specification:ubl:peru:schema:xsd:SunatAggregateComponents-1" xmlns:udt="urn:un:unece:uncefact:data:specification:UnqualifiedDataTypesSchemaModule:2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <ext:UBLExtensions>
+    <ext:UBLExtension>
+      <ext:ExtensionContent><Signature Id="SMARTREASONS" xmlns="http://www.w3.org/2000/09/xmldsig#"><SignedInfo><CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315" /><SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256" /><Reference URI=""><Transforms><Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature" /></Transforms><DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256" /><DigestValue>dnKgx5SSWXI+mgYpAbkQU3w8uJHfNaUZAmcVdJk0nuQ=</DigestValue></Reference></SignedInfo><SignatureValue>UAzNLUhCLCC4iNKAVRgD7g27dxT0yK+QG0jUHNIs1BHKDk6YVsVsupvcA19tpkV60dTgzuCeWEw3WRWOKI3vF7zNmWQrAbtjbzec40rXQKVluTghoyZ50r6Lz05pzckmR+IWIW9858C+shSU22QDW+st9tTiQo2jmwW6iQwvKog4vI6WBaMmujPsFAcS5IaauXcTGrPinJLRBMK92zKIEVXn1U2gCmqTmCt7vvsEpcJXE8vp281klelw6v0VVY3Z84dtzyilmtQTUQbuRz5KE3l3G/nCEbaDD+4yyUWFc/yfHMMmIxPBn18wnRx4FRW9WRR4rl6iGohKvt+/v3DzMQ==</SignatureValue><KeyInfo><X509Data><X509SubjectName>C=PE, L=AREQUIPA, O=GITOCA S.R.L., OU=Validado por Llama.pe ER, OU=FACTURA ELECTRONICA RUC 20455114561, CN=SOFTWARE DE FACTURACION ELECTRONICA, E=rperezp@sreasons.com, STREET=LT. 13 MZ. D URB. CESAR VALLEJO</X509SubjectName><X509Certificate>MIIFYTCCBEmgAwIBAgIIJjJqyt3OBpwwDQYJKoZIhvcNAQELBQAwRjEkMCIGA1UEAwwbTGxhbWEucGUgU0hBMjU2IFN0YW5kYXJkIENBMREwDwYDVQQKDAhMTEFNQS5QRTELMAkGA1UEBhMCUEUwHhcNMjMwNDI3MDA0MDQ3WhcNMjYwNDI2MDA0MDAwWjCCAQYxKDAmBgNVBAkMH0xULiAxMyBNWi4gRCBVUkIuIENFU0FSIFZBTExFSk8xIzAhBgkqhkiG9w0BCQEWFHJwZXJlenBAc3JlYXNvbnMuY29tMSwwKgYDVQQDDCNTT0ZUV0FSRSBERSBGQUNUVVJBQ0lPTiBFTEVDVFJPTklDQTEsMCoGA1UECwwjRkFDVFVSQSBFTEVDVFJPTklDQSBSVUMgMjA0NTUxMTQ1NjExITAfBgNVBAsMGFZhbGlkYWRvIHBvciBMbGFtYS5wZSBFUjEWMBQGA1UECgwNR0lUT0NBIFMuUi5MLjERMA8GA1UEBwwIQVJFUVVJUEExCzAJBgNVBAYTAlBFMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAv1MIwY1h09QwuvLlONpaN4tZToZEJOieuuue9rGsS1W+zRvG7BIK3+6Z9Y6DUftF+tzL5OaQN5axJEYbgXN5J8jNjIqNIA9XeiLbj1MEwZg5J+/KB21H3dnD9h0T9anhCyT7KMwAiVxR5NeVwBse9y53aT451P268z63TpSL3WdxVhkqFE490VXxsImYJTMswi1IYy9v66vy3AQt/+1lVUAJ//9x9l7Fsn4mYmEnxM+qpjJn6usJgKnS8RrGj+yECAQtngclQbkJ91s4o28V/yNmIjMAspR6nlqK3yqR6DdfOjZJ6OTT2+KFWuczkjJnsbPCzgLB3/XRi1kLXcvEYwIDAQABo4IBjzCCAYswDAYDVR0TAQH/BAIwADAfBgNVHSMEGDAWgBRdiFut62X7/mii5NlvPVdyou8rmTBnBggrBgEFBQcBAQRbMFkwNQYIKwYBBQUHMAKGKWh0dHA6Ly9jcnQubGxhbWEucGUvbGxhbWFwZXN0YW5kYXJkY2EuY2VyMCAGCCsGAQUFBzABhhRodHRwOi8vb2NzcC5sbGFtYS5wZTAfBgNVHREEGDAWgRRycGVyZXpwQHNyZWFzb25zLmNvbTBGBgNVHSAEPzA9MDsGDSsGAQQBg5d3AAEAAwEwKjAoBggrBgEFBQcCARYcaHR0cHM6Ly9sbGFtYS5wZS9yZXBvc2l0b3J5LzAdBgNVHSUEFjAUBggrBgEFBQcDAgYIKwYBBQUHAwQwOgYDVR0fBDMwMTAvoC2gK4YpaHR0cDovL2NybC5sbGFtYS5wZS9sbGFtYXBlc3RhbmRhcmRjYS5jcmwwHQYDVR0OBBYEFJTHtooBF1JUn7DhC/NOyUaOPHaqMA4GA1UdDwEB/wQEAwIGwDANBgkqhkiG9w0BAQsFAAOCAQEAHOziNtMBb26wH0eepSzZnm0BRkYQnBfrYVYF6nf+pVL44r7N1BS7eGmIgfTs9O+j404+mKX6JfI3dZ3CeztQHaNjOuy+d1oC4G6lJeIY6EJLq6238xjBwv8T2H/u+7AzRns8SoBlaYDjhTU9HBaLwh1XMKX+Mk7dkKIgLz4rgtgu9TiTdkAG6GMenXd5AunLFBvUamoSMwIzHjmEJzEfeBYUYf+WQpypvYwdkT3TeV3/jGvs7h92eQ3s5FrB7LuzT2d3wUHlD4whEFHNgE/Qddj+yBjjiowbamxcxhjkg5SYE2efoE96Y/4hVTXIXkWkMel5JY5yRocRkxp/Ns5Yew==</X509Certificate></X509Data></KeyInfo></Signature></ext:ExtensionContent>
+    </ext:UBLExtension>
+  </ext:UBLExtensions>
+  <cbc:UBLVersionID>2.1</cbc:UBLVersionID>
+  <cbc:CustomizationID>2.0</cbc:CustomizationID>
+  <cbc:ID>FA01-331</cbc:ID>
+  <cbc:IssueDate>2026-03-27</cbc:IssueDate>
+  <cbc:IssueTime>00:00:00</cbc:IssueTime>
+  <cbc:InvoiceTypeCode listID="0101" name="Tipo de Operacion" listSchemeURI="urn:pe:gob:sunat:cpe:see:gem:catalogos:catalogo51">01</cbc:InvoiceTypeCode>
+  <cbc:Note languageLocaleID="1000">CINCUENTA CON 00/100</cbc:Note>
+  <cbc:DocumentCurrencyCode>PEN</cbc:DocumentCurrencyCode>
+  <cac:Signature>
+    <cbc:ID>SignSMARTREASONS</cbc:ID>
+    <cac:SignatoryParty>
+      <cac:PartyIdentification>
+        <cbc:ID>20455114561</cbc:ID>
+      </cac:PartyIdentification>
+      <cac:PartyName>
+        <cbc:Name>20455114561</cbc:Name>
+      </cac:PartyName>
+    </cac:SignatoryParty>
+    <cac:DigitalSignatureAttachment>
+      <cac:ExternalReference>
+        <cbc:URI>#SMARTREASONS</cbc:URI>
+      </cac:ExternalReference>
+    </cac:DigitalSignatureAttachment>
+  </cac:Signature>
+  <cac:AccountingSupplierParty>
+    <cac:Party>
+      <cac:PartyIdentification>
+        <cbc:ID schemeID="6" schemeName="Documento de Identidad" schemeAgencyName="PE:SUNAT" schemeURI="urn:pe:gob:sunat:cpe:see:gem:catalogos:catalogo06">10760160933</cbc:ID>
+      </cac:PartyIdentification>
+      <cac:PartyLegalEntity>
+        <cbc:RegistrationName>TORRES PALOMINO STEFANY ELIDORA</cbc:RegistrationName>
+        <cac:RegistrationAddress>
+          <cbc:AddressTypeCode listAgencyName="PE:SUNAT" listName="Establecimientos anexos">0000</cbc:AddressTypeCode>
+        </cac:RegistrationAddress>
+      </cac:PartyLegalEntity>
+    </cac:Party>
+  </cac:AccountingSupplierParty>
+  <cac:AccountingCustomerParty>
+    <cac:Party>
+      <cac:PartyIdentification>
+        <cbc:ID schemeID="6" schemeName="Documento de Identidad" schemeAgencyName="PE:SUNAT" schemeURI="urn:pe:gob:sunat:cpe:see:gem:catalogos:catalogo06">20100172543</cbc:ID>
+      </cac:PartyIdentification>
+      <cac:PartyLegalEntity>
+        <cbc:RegistrationName>MOVITECNICA S A</cbc:RegistrationName>
+        <cac:RegistrationAddress>
+          <cac:AddressLine>
+            <cbc:Line>CAL.ELÍAS AGUIRRE NRO. 605 DPTO. 402 (ALTURA AV. ANGAMOS OESTE 610) LIMA - LIMA - MIRAFLORES</cbc:Line>
+          </cac:AddressLine>
+        </cac:RegistrationAddress>
+      </cac:PartyLegalEntity>
+    </cac:Party>
+  </cac:AccountingCustomerParty>
+  <cac:PaymentTerms>
+    <cbc:ID>FormaPago</cbc:ID>
+    <cbc:PaymentMeansID>Contado</cbc:PaymentMeansID>
+  </cac:PaymentTerms>
+  <cac:TaxTotal>
+    <cbc:TaxAmount currencyID="PEN">7.63</cbc:TaxAmount>
+    <cac:TaxSubtotal>
+      <cbc:TaxableAmount currencyID="PEN">42.37</cbc:TaxableAmount>
+      <cbc:TaxAmount currencyID="PEN">7.63</cbc:TaxAmount>
+      <cac:TaxCategory>
+        <cac:TaxScheme>
+          <cbc:ID schemeName="Codigo de tributos" schemeAgencyName="PE:SUNAT" schemeURI="urn:pe:gob:sunat:cpe:see:gem:catalogos:catalogo05">1000</cbc:ID>
+          <cbc:Name>IGV</cbc:Name>
+          <cbc:TaxTypeCode>VAT</cbc:TaxTypeCode>
+        </cac:TaxScheme>
+      </cac:TaxCategory>
+    </cac:TaxSubtotal>
+  </cac:TaxTotal>
+  <cac:LegalMonetaryTotal>
+    <cbc:LineExtensionAmount currencyID="PEN">42.37</cbc:LineExtensionAmount>
+    <cbc:TaxInclusiveAmount currencyID="PEN">50.00</cbc:TaxInclusiveAmount>
+    <cbc:PayableAmount currencyID="PEN">50.00</cbc:PayableAmount>
+  </cac:LegalMonetaryTotal>
+  <cac:InvoiceLine>
+    <cbc:ID>1</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="NIU">1.0000000000</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="PEN">42.37</cbc:LineExtensionAmount>
+    <cac:PricingReference>
+      <cac:AlternativeConditionPrice>
+        <cbc:PriceAmount currencyID="PEN">50.0000000000</cbc:PriceAmount>
+        <cbc:PriceTypeCode listName="Tipo de Precio" listAgencyName="PE:SUNAT" listURI="urn:pe:gob:sunat:cpe:see:gem:catalogos:catalogo16">01</cbc:PriceTypeCode>
+      </cac:AlternativeConditionPrice>
+    </cac:PricingReference>
+    <cac:TaxTotal>
+      <cbc:TaxAmount currencyID="PEN">7.63</cbc:TaxAmount>
+      <cac:TaxSubtotal>
+        <cbc:TaxableAmount currencyID="PEN">42.37</cbc:TaxableAmount>
+        <cbc:TaxAmount currencyID="PEN">7.63</cbc:TaxAmount>
+        <cac:TaxCategory>
+          <cbc:Percent>18.00000</cbc:Percent>
+          <cbc:TaxExemptionReasonCode>10</cbc:TaxExemptionReasonCode>
+          <cac:TaxScheme>
+            <cbc:ID schemeName="Codigo de tributos" schemeAgencyName="PE:SUNAT" schemeURI="urn:pe:gob:sunat:cpe:see:gem:catalogos:catalogo05">1000</cbc:ID>
+            <cbc:Name>IGV</cbc:Name>
+            <cbc:TaxTypeCode>VAT</cbc:TaxTypeCode>
+          </cac:TaxScheme>
+        </cac:TaxCategory>
+      </cac:TaxSubtotal>
+    </cac:TaxTotal>
+    <cac:Item>
+      <cbc:Description>ANTICUCHO  GASEOSA  POSTRE FECHA DE CONSUMO18.03.26</cbc:Description>
+      <cac:SellersItemIdentification>
+        <cbc:ID>00000000</cbc:ID>
+      </cac:SellersItemIdentification>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="PEN">42.3728813600</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>
+</Invoice>

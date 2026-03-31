@@ -76,6 +76,11 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Interfaces
         Task<bool> ExisteDuplicadoAsync(string serie, string correlativo, int? idExcluir = null);
 
         /// <summary>
+        /// Valida la duplicidad de un comprobante por RUC, serie y correlativo
+        /// </summary>
+        Task<bool> ExisteDuplicadoPorRucAsync(long ruc, string serie, string correlativo, int? idExcluir = null);
+
+        /// <summary>
         /// Obtiene estadísticas de comprobantes por período
         /// </summary>
         /// <param name="fechaInicio">Fecha de inicio</param>

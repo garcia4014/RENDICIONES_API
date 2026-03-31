@@ -64,6 +64,11 @@ namespace CapaDatos.ContabilidadAPI.DAO.Interfaces
         Task<List<ComprobantePago>> GetBySerieCorrelattivoAsync(string serie, string correlativo);
 
         /// <summary>
+        /// Busca comprobantes por RUC, serie y correlativo
+        /// </summary>
+        Task<List<ComprobantePago>> GetByRucSerieCorrelattivoAsync(long ruc, string serie, string correlativo);
+
+        /// <summary>
         /// Obtiene comprobantes por RUC emisor
         /// </summary>
         /// <param name="ruc">RUC del emisor</param>

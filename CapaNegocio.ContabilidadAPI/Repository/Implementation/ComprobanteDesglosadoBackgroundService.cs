@@ -1,6 +1,7 @@
 using CapaDatos.ContabilidadAPI.Models;
 using CapaNegocio.ContabilidadAPI.Repository.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.IO.Compression;
@@ -17,13 +18,16 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
     {
         private readonly ILogger<ComprobanteDesglosadoBackgroundService> _logger;
         private readonly IServiceProvider _serviceProvider;
+        private readonly IConfiguration _configuration;
 
         public ComprobanteDesglosadoBackgroundService(
             ILogger<ComprobanteDesglosadoBackgroundService> logger,
-            IServiceProvider serviceProvider)
+            IServiceProvider serviceProvider,
+            IConfiguration configuration)
         {
             _logger = logger;
             _serviceProvider = serviceProvider;
+            _configuration = configuration;
         }
 
         /// <summary>
@@ -163,8 +167,8 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
             if (comprobante == null)
                 return new DesglosePorIdResultado { Exito = false, Mensaje = $"Comprobante ID={id} no encontrado o inactivo" };
 
-            if (comprobante.Desglosado == true)
-                return new DesglosePorIdResultado { Exito = true, Mensaje = "El comprobante ya estaba desglosado", YaDesglosado = true };
+            //if (comprobante.Desglosado == true)
+            //    return new DesglosePorIdResultado { Exito = true, Mensaje = "El comprobante ya estaba desglosado", YaDesglosado = true };
 
             if (comprobante.Ruc == null || string.IsNullOrEmpty(comprobante.Serie) || string.IsNullOrEmpty(comprobante.Correlativo))
                 return new DesglosePorIdResultado { Exito = false, Mensaje = "Faltan datos requeridos (RUC, Serie o Correlativo)" };
@@ -212,16 +216,93 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
         }
 
         /// <summary>
+        /// Obtiene el XML de SUNAT para el comprobante indicado, lo guarda en disco
+        /// según la configuración de appsettings (DesglosarXml:PathXml) y lo devuelve como string.
+        /// </summary>
+        public async Task<ObtenerXmlResultado> ObtenerYGuardarXmlPorIdAsync(int id)
+        {
+            _logger.LogInformation("Obteniendo XML para comprobante ID={Id}", id);
+
+            using var scope = _serviceProvider.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<CapaDatos.ContabilidadAPI.SvrendicionesContext>();
+            var httpClient = scope.ServiceProvider.GetRequiredService<HttpClient>();
+
+            var comprobante = await dbContext.ComprobantesPago
+                .FirstOrDefaultAsync(c => c.Id == id && c.Activo == true);
+
+            if (comprobante == null)
+                return new ObtenerXmlResultado { Exito = false, Mensaje = $"Comprobante ID={id} no encontrado o inactivo" };
+
+            if (comprobante.Ruc == null || string.IsNullOrEmpty(comprobante.Serie) || string.IsNullOrEmpty(comprobante.Correlativo))
+                return new ObtenerXmlResultado { Exito = false, Mensaje = "Faltan datos requeridos (RUC, Serie o Correlativo)" };
+
+            try
+            {
+                var ruc = comprobante.Ruc.Value.ToString();
+                var serie = comprobante.Serie;
+                var correlativo = comprobante.Correlativo;
+
+                // Construir ruta destino igual que GuardarXmlEnDisco
+                var path = _configuration.GetValue<string>("DesglosarXml:PathXml") ?? string.Empty;
+                var fileName = $"{ruc}-{serie}-{correlativo}.xml";
+                var fullPath = string.IsNullOrWhiteSpace(path) ? fileName : Path.Combine(path, fileName);
+
+                // Si ya existe en disco, devolverlo directamente
+                if (File.Exists(fullPath))
+                {
+                    _logger.LogInformation("XML ya existe en disco: {Path}", fullPath);
+                    var xmlExistente = await File.ReadAllTextAsync(fullPath);
+                    return new ObtenerXmlResultado { Exito = true, Mensaje = "XML obtenido desde caché en disco", XmlContent = xmlExistente, RutaArchivo = fullPath };
+                }
+
+                // Obtener de SUNAT y forzar guardado independientemente del flag GuardarXml
+                var xmlResult = await ObtenerXmlDesdeSunatAsync(dbContext, httpClient, ruc, serie, correlativo);
+
+                if (xmlResult == null)
+                    return new ObtenerXmlResultado { Exito = false, Mensaje = "SUNAT no devolvio un XML válido" };
+
+                // Guardar siempre (este endpoint lo pide explícitamente)
+                if (!string.IsNullOrWhiteSpace(path))
+                {
+                    Directory.CreateDirectory(path);
+                    await File.WriteAllTextAsync(fullPath, xmlResult.XmlRaw ?? string.Empty, Encoding.UTF8);
+                    _logger.LogInformation("XML guardado en: {Path}", fullPath);
+                }
+
+                return new ObtenerXmlResultado
+                {
+                    Exito = true,
+                    Mensaje = "XML obtenido desde SUNAT y guardado en disco",
+                    XmlContent = xmlResult.XmlRaw ?? string.Empty,
+                    RutaArchivo = fullPath
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al obtener XML para comprobante ID={Id}", id);
+                return new ObtenerXmlResultado { Exito = false, Mensaje = $"Error inesperado: {ex.Message}" };
+            }
+        }
+
+        /// <summary>
         /// Actualiza el comprobante con los datos extraídos del XML
         /// </summary>
-        private void ActualizarComprobanteConDatosXml(ComprobantePago comprobante, ComprobanteExtractorResult xmlResult)
+        internal void ActualizarComprobanteConDatosXml(ComprobantePago comprobante, ComprobanteExtractorResult xmlResult)
         {
             // Extraer montos de las listas
+            // MontosIgvEspecial = BASE IMPONIBLE de ítems con IGV reducido (igual semántica que MontosGravados)
+            // MontosBaseIgvEspecial = TaxAmount real calculado por SUNAT para esos ítems (el IGV exacto)
             var montoGravado        = SumarMontos(xmlResult.MontosGravados);
             var montoInafecto       = ExtraerPrimerMonto(xmlResult.MontosInafectos);
             var montoExonerado      = ExtraerPrimerMonto(xmlResult.MontosExonerados);
-            var montoIgvEspecial    = SumarMontos(xmlResult.MontosIgvEspecial);     // TaxAmount acumulado por línea
-            var montoBaseIgvEspecial= SumarMontos(xmlResult.MontosBaseIgvEspecial); // Base imponible acumulada por línea
+            var montoBaseIgvEspecial= SumarMontos(xmlResult.MontosIgvEspecial);     // base imponible IGV especial
+            var montoTaxIgvEspecial = SumarMontos(xmlResult.MontosBaseIgvEspecial); // TaxAmount suma de líneas (fallback)
+            var igvDocumento        = decimal.TryParse(xmlResult.MontoIgvDocumento,
+                System.Globalization.NumberStyles.Any,
+                System.Globalization.CultureInfo.InvariantCulture, out var _igvDoc) ? _igvDoc : 0m; // TaxAmount cabecera XML (valor exacto SUNAT)
+            var subtotalDocumento    = decimal.TryParse(xmlResult.MontoGravadoDocumento,
+                System.Globalization.NumberStyles.Any,
+                System.Globalization.CultureInfo.InvariantCulture, out var _subtDoc) ? _subtDoc : 0m; // TaxableAmount cabecera XML (base imponible oficial SUNAT)
             var montoImpuestoConsumo= ExtraerPrimerMonto(xmlResult.MontosImpuestoConsumo);
             var montoTotal          = ExtraerPrimerMonto(xmlResult.MontosTotales);
 
@@ -229,7 +310,7 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
             comprobante.MontoGravado = montoGravado;
             comprobante.MontoInafecto = montoInafecto;
             comprobante.MontoExonerado = montoExonerado;
-            comprobante.MontoIgvEspecial = montoIgvEspecial;
+            comprobante.MontoIgvEspecial = montoBaseIgvEspecial; // base imponible 
             comprobante.MontoOtrosCargos = montoImpuestoConsumo;
             
             // Actualizar monto total desde el XML si está disponible y el comprobante no tiene monto
@@ -243,21 +324,23 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
             comprobante.Gravado = montoGravado > 0;
             comprobante.Inafecto = montoInafecto > 0;
             comprobante.Exonerado = montoExonerado > 0;
-            comprobante.IgvEspecial = montoIgvEspecial > 0;
+            comprobante.IgvEspecial = montoBaseIgvEspecial > 0;
             comprobante.OtrosCargos = montoImpuestoConsumo > 0;
 
-            // Calcular IGV y Subtotal
+            // IGV directo del XML: usar TaxAmount de cabecera (exacto, sin redondeos de línea);
+            // si no viene en cabecera (XML antiguo), caer al acumulado de líneas como fallback.
+            var igvFinal = igvDocumento > 0 ? igvDocumento : montoTaxIgvEspecial;
+
+            // Subtotal e IGV — sin ningún cálculo de tasas, todo viene del XML
             if (montoGravado > 0)
             {
-                var porcentajeIgv = comprobante.IgvPorcentaje ?? 18;
-                comprobante.Igv = Math.Round(montoGravado * porcentajeIgv / 100, 2);
-                comprobante.Subtotal = montoGravado;
+                comprobante.Subtotal = subtotalDocumento > 0 ? subtotalDocumento : montoGravado;
+                comprobante.Igv = igvFinal;
             }
             else if (montoBaseIgvEspecial > 0)
             {
-                // IGV especial (tasa reducida, p.ej. 10.5%): el impuesto ya viene calculado por SUNAT
-                comprobante.Subtotal = montoBaseIgvEspecial;
-                comprobante.Igv = montoIgvEspecial;
+                comprobante.Subtotal = subtotalDocumento > 0 ? subtotalDocumento : montoBaseIgvEspecial;
+                comprobante.Igv = igvFinal;
             }
             else if (montoInafecto > 0)
             {
@@ -295,11 +378,12 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
             // Marcar como desglosado
             comprobante.Desglosado = true;
             
-            _logger.LogInformation("Datos actualizados - Gravado: {G}, Inafecto: {I}, Exonerado: {E}, IgvEspecial: {IE}, ImpuestoConsumo: {IC}, IGV: {IGV}, Subtotal: {S}, MontoTotal: {MT}, FechaEmision: {FE}",
+            _logger.LogInformation("Datos actualizados - Gravado: {G}, Inafecto: {I}, Exonerado: {E}, BaseIgvEspecial: {IE}, TaxIgvEspecial: {TX}, ImpuestoConsumo: {IC}, IGV: {IGV}, Subtotal: {S}, MontoTotal: {MT}, FechaEmision: {FE}",
                 comprobante.MontoGravado,
                 comprobante.MontoInafecto,
                 comprobante.MontoExonerado,
                 comprobante.MontoIgvEspecial,
+                montoTaxIgvEspecial,
                 comprobante.MontoOtrosCargos,
                 comprobante.Igv,
                 comprobante.Subtotal,
@@ -443,8 +527,12 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                     return null;
                 }
 
+                // Guardar XML en disco si está habilitado en appsettings
+                GuardarXmlEnDisco(xmlContent, ruc, serie, correlativo);
+
                 // Procesar XML
                 var result = ComprobanteExtractor.ExtractFromXml(xmlContent);
+                result.XmlRaw = xmlContent; // guardar el XML crudo en el resultado
                 
                 _logger.LogInformation("XML procesado - AfectacionDetectada: {AD}, Gravados: {G}, Inafectos: {I}, Exonerados: {E}, FechasEmision: {FE}",
                     result.AfectacionIgvDetectada,
@@ -464,6 +552,39 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
             {
                 _logger.LogError(ex, "Error al obtener XML desde SUNAT");
                 return null;
+            }
+        }
+
+        /// <summary>
+        /// Guarda el XML en disco si DesglosarXml:GuardarXml = true en appsettings.
+        /// El archivo se nombra {ruc}-{serie}-{correlativo}.xml dentro de DesglosarXml:PathXml.
+        /// </summary>
+        private void GuardarXmlEnDisco(string xmlContent, string ruc, string serie, string correlativo)
+        {
+            try
+            {
+                var guardar = _configuration.GetValue<bool>("DesglosarXml:GuardarXml");
+                if (!guardar)
+                    return;
+
+                var path = _configuration.GetValue<string>("DesglosarXml:PathXml");
+                if (string.IsNullOrWhiteSpace(path))
+                {
+                    _logger.LogWarning("[GuardarXml] DesglosarXml:PathXml no está configurado, no se puede guardar el XML.");
+                    return;
+                }
+
+                Directory.CreateDirectory(path);
+
+                var fileName = $"{ruc}-{serie}-{correlativo}.xml";
+                var fullPath = Path.Combine(path, fileName);
+                File.WriteAllText(fullPath, xmlContent, Encoding.UTF8);
+
+                _logger.LogInformation("[GuardarXml] XML guardado en: {Path}", fullPath);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "[GuardarXml] Error al guardar XML en disco (no afecta el proceso).");
             }
         }
 
@@ -539,5 +660,16 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
         public string Mensaje { get; set; } = string.Empty;
         /// <summary>true si el comprobante ya estaba desglosado previamente (no requirió acción)</summary>
         public bool YaDesglosado { get; set; }
+    }
+
+    /// <summary>
+    /// Resultado de la obtención y guardado del XML SUNAT por ID de comprobante
+    /// </summary>
+    public class ObtenerXmlResultado
+    {
+        public bool Exito { get; set; }
+        public string Mensaje { get; set; } = string.Empty;
+        public string XmlContent { get; set; } = string.Empty;
+        public string RutaArchivo { get; set; } = string.Empty;
     }
 }

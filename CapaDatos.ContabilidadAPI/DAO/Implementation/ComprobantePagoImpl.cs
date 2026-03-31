@@ -233,6 +233,25 @@ namespace CapaDatos.ContabilidadAPI.DAO.Implementation
         }
 
         /// <summary>
+        /// Busca comprobantes por RUC, serie y correlativo
+        /// </summary>
+        public async Task<List<ComprobantePago>> GetByRucSerieCorrelattivoAsync(long ruc, string serie, string correlativo)
+        {
+            try
+            {
+                return await _context.ComprobantesPago
+                    .Where(c => c.Ruc == ruc && c.Serie == serie && c.Correlativo == correlativo && c.Activo == true)
+                    .Include(c => c.SviaticosCabecera)
+                    .Include(c => c.TipoGasto)
+                    .ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Error al buscar comprobantes por RUC/serie/correlativo: {ex.Message}", ex);
+            }
+        }
+
+        /// <summary>
         /// Obtiene comprobantes por RUC emisor
         /// </summary>
         public async Task<List<ComprobantePago>> GetByRucAsync(long ruc)
