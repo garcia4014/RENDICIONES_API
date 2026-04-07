@@ -376,9 +376,9 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                 // Validar duplicidad excluyendo el actual
                 if (!string.IsNullOrEmpty(updateDto.Serie) && !string.IsNullOrEmpty(updateDto.Correlativo))
                 {
-                    if (await ExisteDuplicadoAsync(updateDto.Serie, updateDto.Correlativo, updateDto.Id))
+                    if (updateDto.Ruc.HasValue && await ExisteDuplicadoPorRucAsync(updateDto.Ruc.Value, updateDto.Serie, updateDto.Correlativo, updateDto.Id))
                     {
-                        return new ApiResponse<ComprobantePagoDto>(null, "Ya existe otro comprobante con la misma serie y correlativo");
+                        return new ApiResponse<ComprobantePagoDto>(null, $"Ya existe otro comprobante del RUC {updateDto.Ruc} con la misma serie y correlativo");
                     }
                 }
 
