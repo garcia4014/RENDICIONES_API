@@ -668,6 +668,53 @@ using System.ComponentModel.DataAnnotations;
                 return StatusCode(500, new ApiResponse<string>($"Error interno del servidor: {ex.Message}"));
             }
         }
+
+        [HttpPost("desglosa-masivo")]
+        [ProducesResponseType(typeof(ApiResponse<DesgloseMasivoResultado>), 200)]
+        [ProducesResponseType(typeof(ApiResponse<string>), 400)]
+        [ProducesResponseType(500)]
+        public async Task<IActionResult> DesglosaMasivo([FromBody] DesgloseMasivoRequest request)
+        {
+            if (request?.Ids == null || !request.Ids.Any())
+                return BadRequest(new ApiResponse<string>("Debe proporcionar al menos un ID de comprobante"));
+
+            if (request.Ids.Count > 200)
+                return BadRequest(new ApiResponse<string>("El arreglo no puede superar los 200 IDs por petición"));
+
+            _logger.LogInformation("Solicitud de desglose masivo para {Cantidad} comprobantes", request.Ids.Count);
+
+            var exitosos = new List<int>();
+            var fallidos = new List<DesgloseMasivoFallido>();
+
+            foreach (var id in request.Ids)
+            {
+                try
+                {
+                    var resultado = await _desglosadoService.ProcesarComprobanteDesglosadoPorIdAsync(id);
+                    if (resultado.Exito)
+                        exitosos.Add(id);
+                    else
+                        fallidos.Add(new DesgloseMasivoFallido { Id = id, Motivo = resultado.Mensaje });
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error inesperado al desglosa comprobante ID={Id}", id);
+                    fallidos.Add(new DesgloseMasivoFallido { Id = id, Motivo = $"Error inesperado: {ex.Message}" });
+                }
+            }
+
+            var resumen = new DesgloseMasivoResultado
+            {
+                Total = request.Ids.Count,
+                Exitosos = exitosos.Count,
+                Fallidos = fallidos.Count,
+                IdsExitosos = exitosos,
+                IdsFallidos = fallidos
+            };
+
+            _logger.LogInformation("Desglose masivo completado - Exitosos: {E}, Fallidos: {F}", exitosos.Count, fallidos.Count);
+            return Ok(new ApiResponse<DesgloseMasivoResultado>(resumen, "Proceso completado"));
+        }
     }
 
     /// <summary>
@@ -677,4 +724,25 @@ using System.ComponentModel.DataAnnotations;
     {
         /// <summary>Lista de IDs de comprobantes a procesar (máximo 200)</summary>
         public List<int> Ids { get; set; } = new();
-    }  
+    }
+
+    public class DesgloseMasivoRequest
+    {
+        /// <summary>Lista de IDs de comprobantes a desglosa (máximo 200)</summary>
+        public List<int> Ids { get; set; } = new();
+    }
+
+    public class DesgloseMasivoResultado
+    {
+        public int Total { get; set; }
+        public int Exitosos { get; set; }
+        public int Fallidos { get; set; }
+        public List<int> IdsExitosos { get; set; } = new();
+        public List<DesgloseMasivoFallido> IdsFallidos { get; set; } = new();
+    }
+
+    public class DesgloseMasivoFallido
+    {
+        public int Id { get; set; }
+        public string Motivo { get; set; } = string.Empty;
+    }
