@@ -1,3 +1,5 @@
+using CapaDatos.ContabilidadAPI.Models;
+using CapaNegocio.ContabilidadAPI.Repository.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
