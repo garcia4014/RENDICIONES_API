@@ -92,6 +92,7 @@ jobs:
           # DesglosarXml - Using VARIABLES
           $appSettings.DesglosarXml.GuardarXml = [System.Convert]::ToBoolean("${{ vars.DESGLOSA_GUARDAR_XML }}")
           $appSettings.DesglosarXml.PathXml = "${{ vars.DESGLOSA_PATH_XML }}"
+          $appSettings.DesglosarXml.FechaLimiteDias = [int]"${{ vars.DESGLOSA_FECHA_LIMITE_DIAS }}"
           
           # Azure Document Intelligence - Using VARIABLES
           $appSettings.AzureDocumentIntelligence.Enabled = [System.Convert]::ToBoolean("${{ vars.AZURE_DOC_INTELLIGENCE_ENABLED }}")
@@ -111,9 +112,9 @@ jobs:
           Write-Host "  - JWT Settings: 3 updated" -ForegroundColor Cyan
           Write-Host "  - SUNAT Configuration: 5 updated" -ForegroundColor Cyan
           Write-Host "  - OCR Configuration: 10 updated" -ForegroundColor Cyan
-          Write-Host "  - DesglosarXml: 2 updated" -ForegroundColor Cyan
+          Write-Host "  - DesglosarXml: 3 updated" -ForegroundColor Cyan
           Write-Host "  - Azure Document Intelligence: 7 updated" -ForegroundColor Cyan
-          Write-Host "  - Total: 31 configuration values applied from GitHub Variables" -ForegroundColor Cyan
+          Write-Host "  - Total: 32 configuration values applied from GitHub Variables" -ForegroundColor Cyan
       
       - name: Restore dependencies
         shell: powershell

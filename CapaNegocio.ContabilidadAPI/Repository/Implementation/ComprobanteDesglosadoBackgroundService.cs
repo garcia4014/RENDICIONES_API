@@ -1,6 +1,3 @@
-using CapaDatos.ContabilidadAPI.Models;
-using CapaNegocio.ContabilidadAPI.Repository.Interfaces;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -43,8 +40,9 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                 var dbContext = scope.ServiceProvider.GetRequiredService<CapaDatos.ContabilidadAPI.SvrendicionesContext>();
                 var httpClient = scope.ServiceProvider.GetRequiredService<HttpClient>();
 
-                // Fecha límite: últimos 2 días
-                var fechaLimite = DateTime.Now.AddDays(-2);
+                // Fecha límite: configurable desde appsettings (DesglosarXml:FechaLimiteDias), por defecto 2 días
+                var fechaLimiteDias = _configuration.GetValue<int>("DesglosarXml:FechaLimiteDias", 2);
+                var fechaLimite = DateTime.Now.AddDays(-fechaLimiteDias);
 
                 // Obtener comprobantes con DESGLOSADO = 0 o NULL de los últimos 2 días
                 var comprobantesNoDesglosados = await dbContext.ComprobantesPago
