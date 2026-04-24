@@ -139,6 +139,10 @@ namespace CapaDatos.ContabilidadAPI
                 entity.Property(e => e.SvEmpDni)
                     .HasMaxLength(12)
                     .HasColumnName("SV_EMP_DNI");
+                entity.Property(e => e.SvEmpNombres)
+                    .HasMaxLength(200)
+                    .HasColumnName("SV_EMP_NOMBRES")
+                    .IsRequired(false);
                 entity.Property(e => e.SvSefId)
                     .HasColumnName("SV_SEF_ID");
                 entity.Property(e => e.SvFechaInicio)

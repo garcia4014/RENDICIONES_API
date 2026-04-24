@@ -13,6 +13,8 @@ public partial class SviaticosCabecera
 
     public string? SvEmpDni { get; set; }
 
+    public string? SvEmpNombres { get; set; }
+
     public DateTime? SvFechaInicio { get; set; }
 
     public DateTime? SvFechaRetorno { get; set; }

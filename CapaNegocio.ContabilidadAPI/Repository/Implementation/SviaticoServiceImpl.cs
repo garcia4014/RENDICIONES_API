@@ -111,6 +111,7 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                     SvNumero = numeroCorrelativo,
                     SvEmpCodigo = dto.SvEmpCodigo,
                     SvEmpDni = dto.SvEmpDni,
+                    SvEmpNombres = dto.SvEmpNombres,
                     SvFechaInicio = dto.SvFechaInicio,
                     SvFechaRetorno = dto.SvFechaRetorno,
                     SvEmpCantidad = dto.SvEmpCantidad,
@@ -188,6 +189,7 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
 
                 cabecera.SvEmpCodigo = dto.SvEmpCodigo ?? cabecera.SvEmpCodigo;
                 cabecera.SvEmpDni = dto.SvEmpDni ?? cabecera.SvEmpDni;
+                cabecera.SvEmpNombres = dto.SvEmpNombres ?? cabecera.SvEmpNombres;
                 cabecera.SvFechaInicio = dto.SvFechaInicio ?? cabecera.SvFechaInicio;
                 cabecera.SvFechaRetorno = dto.SvFechaRetorno ?? cabecera.SvFechaRetorno;
                 cabecera.SvEmpCantidad = dto.SvEmpCantidad ?? cabecera.SvEmpCantidad;

@@ -18,6 +18,8 @@ namespace CapaNegocio.ContabilidadAPI.Models.DTO
 
         public string? SvEmpDni { get; set; }
 
+        public string? SvEmpNombres { get; set; }
+
         public DateTime? SvFechaInicio { get; set; }
 
         public DateTime? SvFechaRetorno { get; set; }
@@ -60,6 +62,8 @@ namespace CapaNegocio.ContabilidadAPI.Models.DTO
 
         public string? SvEmpDni { get; set; }
 
+        public string? SvEmpNombres { get; set; }
+
         public DateTime? SvFechaInicio { get; set; }
 
         public DateTime? SvFechaRetorno { get; set; }
@@ -100,6 +104,7 @@ namespace CapaNegocio.ContabilidadAPI.Models.DTO
         public string SvNumero { get; set; } = null!;
         public string SvEmpCodigo { get; set; } = null!;
         public string? SvEmpDni { get; set; }
+        public string? SvEmpNombres { get; set; }
         public DateTime? SvFechaInicio { get; set; }
         public DateTime? SvFechaRetorno { get; set; }
         public int? SvEmpCantidad { get; set; }

@@ -460,6 +460,21 @@ namespace CapaDatos.ContabilidadAPI.Models
                                     result.MontosInafectos.Add(taxableAmount);
                                     afectacionDetectada = true;
                                     break;
+                                case "31": // Inafecto - Retiro por Bonificación
+                                case "32": // Inafecto - Retiro
+                                case "33": // Inafecto - Retiro como Muestras Médicas
+                                case "34": // Inafecto - Retiro a título gratuito
+                                case "35": // Inafecto - Retiro por sustitución
+                                case "36": // Inafecto - Retiro por merma
+                                    Console.WriteLine($"[XML] Inafecto (código {taxExemptionReasonCode}) detectado: {taxableAmount}");
+                                    result.MontosInafectos.Add(taxableAmount);
+                                    afectacionDetectada = true;
+                                    break;
+                                case "40": // Exportación de bienes o servicios (tasa 0%, TaxScheme 9995/EXP)
+                                    Console.WriteLine($"[XML] Exportación (código 40) detectada: {taxableAmount}");
+                                    result.MontosExonerados.Add(taxableAmount);
+                                    afectacionDetectada = true;
+                                    break;
                                 case "17": // IGV Especial (IVAP) - siempre 10%
                                     Console.WriteLine($"[XML] IGV Especial (código 17) detectado: {taxableAmount}");
                                     result.MontosIgvEspecial.Add(taxableAmount);
