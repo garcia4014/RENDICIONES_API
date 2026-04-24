@@ -452,7 +452,7 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                 var token = parametro.Valor;
 
                 String tipoComprobante = dbContext.ComprobantesPago
-                    .Where(c => c.Ruc == long.Parse(ruc) && c.Serie == serie && c.Correlativo == correlativo)
+                    .Where(c => c.Ruc == long.Parse(ruc) && c.Serie == serie && c.Correlativo == correlativo && c.Activo)
                     .Select(c => c.TipoComprobante)
                     .FirstOrDefault() ?? "01"; // Default a "01" si no se encuentra
 

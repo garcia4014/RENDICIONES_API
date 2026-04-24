@@ -695,6 +695,8 @@ using System.ComponentModel.DataAnnotations;
                         exitosos.Add(id);
                     else
                         fallidos.Add(new DesgloseMasivoFallido { Id = id, Motivo = resultado.Mensaje });
+
+                    Thread.Sleep(1500);
                 }
                 catch (Exception ex)
                 {
