@@ -33,6 +33,8 @@ jobs:
       
       - name: Display environment info
         shell: powershell
+        env:
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
           Write-Host "=== Environment Information ===" -ForegroundColor Cyan
           Write-Host "Runner: $env:COMPUTERNAME"
@@ -40,7 +42,8 @@ jobs:
           Write-Host "Date: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
           Write-Host "Branch: ${{ github.ref_name }}"
           Write-Host "Commit: ${{ github.sha }}"
-          Write-Host "Commit Message: ${{ github.event.head_commit.message }}"
+          $commitMsg = $env:COMMIT_MESSAGE
+          Write-Host "Commit Message: $commitMsg"
           Write-Host "==============================" -ForegroundColor Cyan
       
       - name: Update appsettings.Production.json with variables
