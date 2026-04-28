@@ -124,8 +124,8 @@ namespace CapaDatos.ContabilidadAPI.Models
         [Column("MONTO_OTROS_CARGOS")]
         public decimal? MontoOtrosCargos { get; set; } = 0m;
 
-        [Column("IGVPorcentaje")]
-        public int? IgvPorcentaje { get; set; }
+        [Column("IGVPorcentaje", TypeName = "decimal(18,2)")]
+        public decimal? IgvPorcentaje { get; set; }
 
         [Column("DESGLOSADO")]
         public bool? Desglosado { get; set; } = false;
