@@ -265,6 +265,7 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                 var serie = comprobante.Serie!;
                 var correlativo = comprobante.Correlativo!.PadLeft(7, '0'); // Asegurar 7 dígitos con ceros a la izquierda
 
+
                 // Determinar tipo de comprobante y asegurar 2 dígitos (01, 03, 07, etc.)
                 var tipoComprobante = DeterminarTipoComprobantePorSerie(serie, comprobante.TipoComprobante).PadLeft(2, '0');
 
@@ -280,11 +281,6 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                 }
 
                 var token = parametro.Valor;
-
-                // URL para obtener el PDF (endpoint /01 en lugar de /02 que es para XML)
-                var url = $"https://api-cpe.sunat.gob.pe/v1/contribuyente/consultacpe/comprobantes/{ruc}-{tipoComprobante}-{serie}-{correlativo}-2/01";
-
-                _logger.LogInformation("Llamando a SUNAT para PDF: {Url}", url);
 
                 // Configurar headers para simular navegador (headers exactos que funcionan en navegador)
                 httpClient.DefaultRequestHeaders.Clear();
@@ -308,6 +304,11 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
 
                 while (intentos < maxIntentosApi)
                 {
+                    var url = $"https://api-cpe.sunat.gob.pe/v1/contribuyente/consultacpe/comprobantes/{ruc}-{tipoComprobante}-{serie}-{correlativo}-2/01";
+                    // URL para obtener el PDF (endpoint /01 en lugar de /02 que es para XML)
+
+                    _logger.LogInformation("Llamando a SUNAT para PDF: {Url}", url);
+
                     intentos++;
                     try
                     {
@@ -327,7 +328,7 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                         {
                             _logger.LogWarning("PDF no encontrado en SUNAT para RUC={Ruc}, Serie={Serie}, Correlativo={Correlativo}",
                                 ruc, serie, correlativo);
-                            return false;
+                            if(intentos == 2) { return false; }
                         }
 
                         _logger.LogWarning("Intento {Intento}/{Max} - Status: {Status}", intentos, maxIntentosApi, response.StatusCode);
@@ -336,6 +337,7 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                         {
                             await Task.Delay(1000 * intentos); // Espera incremental
                         }
+                        correlativo = correlativo.TrimStart('0'); // Intentar quitando los 0 delante
                     }
                     catch (Exception ex)
                     {
