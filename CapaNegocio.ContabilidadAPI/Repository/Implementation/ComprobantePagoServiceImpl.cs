@@ -1,5 +1,3 @@
-using AutoMapper;
-using CapaDatos.ContabilidadAPI;
 using CapaDatos.ContabilidadAPI.DAO.Interfaces;
 using CapaDatos.ContabilidadAPI.Models;
 using CapaNegocio.ContabilidadAPI.Models;
@@ -295,7 +293,7 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                 if (tieneGravado && tieneEspecial)
                 {
                     decimal baseTotal = (comprobante.MontoGravado ?? 0) + (comprobante.MontoIgvEspecial ?? 0);
-                    comprobante.IgvPorcentaje = baseTotal > 0 ? (int)Math.Round((igvTotal / baseTotal) * 100) : 0;
+                    comprobante.IgvPorcentaje = baseTotal > 0 ? Math.Round((igvTotal / baseTotal) * 100, 2) : 0;
                 }
                 else if (tieneEspecial)
                 {
@@ -481,7 +479,7 @@ namespace CapaNegocio.ContabilidadAPI.Repository.Implementation
                 if (tieneGravado && tieneEspecial)
                 {
                     decimal baseTotal = (comprobante.MontoGravado ?? 0) + (comprobante.MontoIgvEspecial ?? 0);
-                    comprobante.IgvPorcentaje = baseTotal > 0 ? (int)Math.Round((igvTotal / baseTotal) * 100) : 0;
+                    comprobante.IgvPorcentaje = baseTotal > 0 ? Math.Round((igvTotal / baseTotal) * 100, 2) : 0;
                 }
                 else if (tieneEspecial)
                 {
