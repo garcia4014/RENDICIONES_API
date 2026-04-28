@@ -1,5 +1,3 @@
-using AutoMapper;
-using CapaDatos.ContabilidadAPI;
 using CapaDatos.ContabilidadAPI.DAO.Interfaces;
 using CapaDatos.ContabilidadAPI.Models;
 using CapaNegocio.ContabilidadAPI.Models;
