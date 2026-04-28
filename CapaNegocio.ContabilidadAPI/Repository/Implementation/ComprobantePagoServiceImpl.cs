@@ -1,5 +1,4 @@
 using CapaDatos.ContabilidadAPI.DAO.Interfaces;
-using CapaDatos.ContabilidadAPI.Models;
 using CapaNegocio.ContabilidadAPI.Models;
 using CapaNegocio.ContabilidadAPI.Models.DTO;
 using CapaNegocio.ContabilidadAPI.Repository.Interfaces;
