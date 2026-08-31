@@ -134,7 +134,7 @@ namespace CapaDatos.ContabilidadAPI.DAO.Implementation
                 fechaFin = DateTime.Now.AddMonths(-6);
                 fechaInicio = new DateTime(fechaFin.GetValueOrDefault().Year, fechaFin.GetValueOrDefault().Month, 1);
 
-                fechaFin = fechaFin.GetValueOrDefault().AddMonths(6);
+                fechaFin = DateTime.Now;
 
                 // Construir query base con filtros (sin paginación para el conteo)
                 var queryBase = _context.SviaticosCabeceras.AsQueryable();
